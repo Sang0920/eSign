@@ -1,4 +1,4 @@
-'pyHanko[pkcs11,image-support,opentype]'
+pyHanko[pkcs11,image-support,opentype]
 PyMuPDF
 flask
 flask-sqlalchemy
