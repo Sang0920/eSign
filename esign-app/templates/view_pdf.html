@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}PDF eSigner - View Document{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>{{ document.original_filename }}</h2>
+    <div>
+        <a href="{{ url_for('download_document', document_id=document.id) }}" class="btn btn-primary">
+            <i class="bi bi-download"></i> Download
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- {% if document.signed %}
+<div class="alert alert-success">
+    <strong>Digitally Signed:</strong> This document was signed on {{ document.sign_date.strftime('%Y-%m-%d %H:%M') }}
+</div>
+{% endif %} -->
+{% if document.signed %}
+<div class="alert alert-success">
+    <strong>Digitally Signed:</strong> This document was signed on {{ document.sign_date.strftime('%Y-%m-%d %H:%M') }}
+    {% if document.hash_algorithm %}
+    using <span class="badge bg-info">{{ document.hash_algorithm.upper() }}</span> hash algorithm
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="embed-responsive">
+            <!-- First try using object tag (works in most browsers) -->
+            <object 
+                data="{{ url_for('view_file', document_id=document.id) }}"
+                type="application/pdf"
+                width="100%"
+                height="800px">
+                
+                <!-- Fallback to iframe if PDF.js is installed -->
+                <iframe
+                    src="{{ url_for('view_file', document_id=document.id) }}"
+                    width="100%"
+                    height="800px"
+                    style="border: none;">
+                    
+                    <!-- Final fallback -->
+                    <p>
+                        It appears your browser doesn't support PDF viewing.
+                        <a href="{{ url_for('download_document', document_id=document.id) }}">Click here to download the PDF</a>.
+                    </p>
+                </iframe>
+            </object>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}PDF eSigner - Home{% endblock %}
+
+{% block content %}
+<div class="jumbotron py-5">
+    <div class="container">
+        <h1 class="display-4">Welcome to PDF eSigner</h1>
+        <p class="lead">Securely sign your PDF documents with digital signatures that comply with PAdES standards.</p>
+        <hr class="my-4">
+        <p>Get started by creating an account or logging in if you already have one.</p>
+        <div class="d-flex gap-2">
+            <a class="btn btn-primary btn-lg" href="{{ url_for('register') }}" role="button">Sign Up</a>
+            <a class="btn btn-outline-primary btn-lg" href="{{ url_for('login') }}" role="button">Log In</a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Upload Documents</h5>
+                <p class="card-text">Upload your PDF documents to be signed with a secure digital signature.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Draw Your Signature</h5>
+                <p class="card-text">Use our digital canvas to create your signature or upload an image of your signature.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">PAdES Compliant</h5>
+                <p class="card-text">Your signed documents comply with PDF Advanced Electronic Signatures (PAdES) standards.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}PDF eSigner - Dashboard{% endblock %}
+
+{% block content %}
+<h2>Your Documents</h2>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Upload a new PDF to sign</h5>
+        <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="pdf_file" class="form-label">Select PDF File</label>
+                <input class="form-control" type="file" id="pdf_file" name="pdf_file" accept=".pdf" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+    </div>
+</div>
+
+{% if documents %}
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>File Name</th>
+                <th>Upload Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for document in documents %}
+            <tr>
+                <td>{{ document.original_filename }}</td>
+                <td>{{ document.upload_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    {% if document.signed %}
+                    <span class="badge bg-success">Signed</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">Not Signed</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        {% if document.signed %}
+                        <a href="{{ url_for('view_document', document_id=document.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                        <a href="{{ url_for('download_document', document_id=document.id) }}" class="btn btn-sm btn-outline-success">Download</a>
+                        {% else %}
+                        <a href="{{ url_for('sign_document', document_id=document.id) }}" class="btn btn-sm btn-outline-primary">Sign</a>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">
+    You haven't uploaded any documents yet. Upload a PDF to get started.
+</div>
+{% endif %}
+{% endblock %}

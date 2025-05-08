@@ -1,0 +1,24 @@
+[ req ]
+distinguished_name = req_distinguished_name
+x509_extensions    = v3_ca       # Define the extensions section
+prompt             = no          # Don't prompt for DN, take from below
+
+[ req_distinguished_name ]
+C            = VN
+ST           = Ho Chi Minh City
+L            = Ho Chi Minh City
+O            = HUIT
+OU           = HUIT Lab
+CN           = Do The Sang # Your Common Name
+emailAddress = dothesang20@gmail.com # Your Email
+
+[ v3_ca ]
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints       = critical, CA:FALSE # This is an end-entity certificate, not a CA
+keyUsage               = critical, digitalSignature, nonRepudiation # CRITICAL: For signing
+# extendedKeyUsage     = codeSigning # Optional: if you need other usages
+# subjectAltName       = @alt_names # Optional
+
+# [ alt_names ] # Optional
+# DNS.1 = your.domain.com

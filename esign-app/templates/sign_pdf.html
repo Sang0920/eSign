@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+
+{% block title %}PDF eSigner - Sign Document{% endblock %}
+
+{% block styles %}
+<style>
+    #signature-pad {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background-color: #fff;
+        cursor: crosshair;
+        width: 100%;
+        height: 200px;
+    }
+
+    .pdf-page-container {
+        border: 1px solid #ddd;
+        overflow: auto;
+        text-align: center;
+        background-color: #f5f5f5;
+        position: relative;
+        margin-bottom: 10px;
+    }
+
+    .pdf-page-container img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    .signature-preview {
+        border: 2px solid #007bff;
+        position: absolute;
+        cursor: move;
+        display: block;
+        background-color: rgba(255, 255, 255, 0.5);
+        z-index: 100;
+    }
+
+    .nav-pills .nav-link.active {
+        background-color: #007bff;
+    }
+
+    .signature-tools {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Sign Document: {{ document.original_filename }}</h2>
+
+<div class="row mt-3">
+    <!-- Document Preview Column -->
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <ul class="nav nav-pills" id="page-tabs" role="tablist">
+                    <!-- Page tabs will be added here dynamically -->
+                </ul>
+            </div>
+            <div class="card-body p-0">
+                <div class="tab-content" id="page-tab-content">
+                    <!-- Pages will be added here dynamically -->
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <button id="prev-page" class="btn btn-outline-secondary" disabled>Previous Page</button>
+                    <span id="page-indicator">Page 1 of ?</span>
+                    <button id="next-page" class="btn btn-outline-secondary">Next Page</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signature Tools Column -->
+    <div class="col-md-4">
+        <div class="signature-tools">
+            <h5 class="mb-3">Create Your Signature</h5>
+            <canvas id="signature-pad"></canvas>
+            <div class="d-flex justify-content-between mt-2">
+                <button id="clear-signature" class="btn btn-outline-danger">Clear</button>
+                <button id="add-signature" class="btn btn-primary">Add to Document</button>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Signature Options</h5>
+            </div>
+            <div class="card-body">
+                <form id="sign-form" method="POST" action="{{ url_for('sign_document', document_id=document.id) }}">
+                    <input type="hidden" id="signature" name="signature" required>
+                    <input type="hidden" id="x" name="x" value="50">
+                    <input type="hidden" id="y" name="y" value="500">
+                    <input type="hidden" id="width" name="width" value="200">
+                    <input type="hidden" id="height" name="height" value="100">
+                    <input type="hidden" id="page" name="page" value="0">
+                    
+                    <div class="mb-3">
+                        <label for="algorithm" class="form-label">Signature Hash Algorithm</label>
+                        <select class="form-select" id="algorithm" name="algorithm">
+                            <option value="sha256" selected>SHA-256 (Standard)</option>
+                            <option value="sha384">SHA-384 (Enhanced)</option>
+                            <option value="sha512">SHA-512 (Maximum Security)</option>
+                            <option value="sha3_256">SHA3-256 (Modern)</option>
+                            <option value="sha3_512">SHA3-512 (Future-Proof)</option>
+                        </select>
+                        <div class="form-text">
+                            <small>Stronger algorithms provide better security but may affect compatibility.</small>
+                        </div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" id="finalize-btn" class="btn btn-success mt-3" disabled>
+                            Digitally Sign Document
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Algorithm Info Modal -->
+<div class="modal fade" id="algorithmInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Hash Algorithm Information</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Algorithm</th>
+                                <th>Security Level</th>
+                                <th>Output Size</th>
+                                <th>Compatibility</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>SHA-256</td>
+                                <td>Good</td>
+                                <td>256 bits</td>
+                                <td>Excellent</td>
+                                <td>General use, widely compatible</td>
+                            </tr>
+                            <tr>
+                                <td>SHA-384</td>
+                                <td>Better</td>
+                                <td>384 bits</td>
+                                <td>Very Good</td>
+                                <td>Enhanced security needs</td>
+                            </tr>
+                            <tr>
+                                <td>SHA-512</td>
+                                <td>Best (SHA-2)</td>
+                                <td>512 bits</td>
+                                <td>Good</td>
+                                <td>High-value documents</td>
+                            </tr>
+                            <tr>
+                                <td>SHA3-256</td>
+                                <td>Advanced</td>
+                                <td>256 bits</td>
+                                <td>Moderate</td>
+                                <td>Future-proofing with good size</td>
+                            </tr>
+                            <tr>
+                                <td>SHA3-512</td>
+                                <td>Maximum</td>
+                                <td>512 bits</td>
+                                <td>Limited</td>
+                                <td>Maximum security, long-term preservation</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <strong>Note:</strong> For most documents, SHA-256 provides adequate security. 
+                    Choose stronger algorithms for highly sensitive information or documents that 
+                    need to remain valid for many years.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add the help button next to the algorithm select label
+        const algorithmLabel = document.querySelector('label[for="algorithm"]');
+        const helpButton = document.createElement('button');
+        helpButton.type = 'button';
+        helpButton.className = 'btn btn-sm btn-outline-info ms-2';
+        helpButton.innerHTML = '<i class="bi bi-question-circle"></i> Info';
+        helpButton.setAttribute('data-bs-toggle', 'modal');
+        helpButton.setAttribute('data-bs-target', '#algorithmInfoModal');
+        algorithmLabel.appendChild(helpButton);
+        
+        // PDF viewing variables
+        let currentPage = 0;
+        let totalPages = 1;
+        let pdfPageSizes = [];
+        let signaturePlaced = false;
+        let previewElements = {}; // Keep track of preview elements per page
+
+        // Get the canvas element
+        const canvas = document.getElementById('signature-pad');
+        
+        // Adjust canvas for high DPI displays
+        function resizeCanvas() {
+            // Get the computed size of the canvas
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const rect = canvas.getBoundingClientRect();
+            
+            // Set the canvas size
+            canvas.width = rect.width * ratio;
+            canvas.height = rect.height * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+        }
+        
+        // Resize the canvas initially and on window resize
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initialize SignaturePad with proper settings
+        const signaturePad = new SignaturePad(canvas, {
+            minWidth: 1,
+            maxWidth: 3,
+            penColor: 'black',
+            backgroundColor: 'rgba(255, 255, 255, 0)'
+        });
+
+        // Initialize PDF preview
+        loadPdfInfo();
+
+        // Signature pad buttons
+        document.getElementById('clear-signature').addEventListener('click', function() {
+            signaturePad.clear();
+        });
+
+        document.getElementById('add-signature').addEventListener('click', function() {
+            if (signaturePad.isEmpty()) {
+                alert('Please create a signature first');
+                return;
+            }
+            
+            // Get signature as data URL
+            const dataUrl = signaturePad.toDataURL('image/png');
+            document.getElementById('signature').value = dataUrl;
+            
+            // Create or get the signature preview for the current page
+            let preview = previewElements[currentPage];
+            
+            if (!preview) {
+                // Create new preview element for this page
+                preview = document.createElement('div');
+                preview.className = 'signature-preview';
+                preview.id = `signature-preview-${currentPage}`;
+                preview.style.position = 'absolute';
+                preview.style.display = 'block';
+                preview.style.border = '2px solid #007bff';
+                preview.style.backgroundSize = 'contain';
+                preview.style.backgroundRepeat = 'no-repeat';
+                preview.style.backgroundPosition = 'center';
+                preview.style.width = '200px';
+                preview.style.height = '100px';
+                preview.style.cursor = 'move';
+                preview.style.zIndex = '100';
+                preview.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
+                
+                // Add to current page container
+                const container = document.getElementById(`pdf-container-${currentPage}`);
+                container.appendChild(preview);
+                
+                // Store reference to this preview
+                previewElements[currentPage] = preview;
+            }
+            
+            // Set the preview image
+            preview.style.backgroundImage = `url(${dataUrl})`;
+            
+            // Position the preview in the center initially
+            const container = document.getElementById(`pdf-container-${currentPage}`);
+            const containerRect = container.getBoundingClientRect();
+            
+            let left = (containerRect.width - 200) / 2;
+            let top = (containerRect.height - 100) / 2;
+            
+            preview.style.left = left + 'px';
+            preview.style.top = top + 'px';
+            
+            // Update form values
+            document.getElementById('x').value = left;
+            document.getElementById('y').value = top;
+            document.getElementById('width').value = 200;
+            document.getElementById('height').value = 100;
+            document.getElementById('page').value = currentPage;
+            
+            // Enable the finalize button
+            document.getElementById('finalize-btn').disabled = false;
+            signaturePlaced = true;
+            
+            // Make the signature draggable
+            makeSignatureDraggable(preview, currentPage);
+        });
+
+        // Navigation buttons
+        document.getElementById('prev-page').addEventListener('click', function() {
+            if (currentPage > 0) {
+                navigateToPage(currentPage - 1);
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', function() {
+            if (currentPage < totalPages - 1) {
+                navigateToPage(currentPage + 1);
+            }
+        });
+
+        // Load PDF information
+        function loadPdfInfo() {
+            fetch(`{{ url_for('preview_document', document_id=document.id) }}`)
+                .then(response => response.json())
+                .then(data => {
+                    totalPages = data.pageCount;
+                    
+                    // Create page tabs
+                    const tabsContainer = document.getElementById('page-tabs');
+                    const tabContentContainer = document.getElementById('page-tab-content');
+                    
+                    tabsContainer.innerHTML = '';
+                    tabContentContainer.innerHTML = '';
+                    
+                    for (let i = 0; i < totalPages; i++) {
+                        // Create tab
+                        const li = document.createElement('li');
+                        li.className = 'nav-item';
+                        li.role = 'presentation';
+                        
+                        const button = document.createElement('button');
+                        button.className = i === 0 ? 'nav-link active' : 'nav-link';
+                        button.id = `page-${i}-tab`;
+                        button.setAttribute('data-bs-toggle', 'pill');
+                        button.setAttribute('data-bs-target', `#page-${i}`);
+                        button.setAttribute('type', 'button');
+                        button.setAttribute('role', 'tab');
+                        button.textContent = `Page ${i + 1}`;
+                        
+                        // Add click event listener
+                        button.addEventListener('click', function() {
+                            navigateToPage(i);
+                        });
+                        
+                        li.appendChild(button);
+                        tabsContainer.appendChild(li);
+                        
+                        // Create tab content
+                        const div = document.createElement('div');
+                        div.className = i === 0 ? 'tab-pane fade show active' : 'tab-pane fade';
+                        div.id = `page-${i}`;
+                        div.role = 'tabpanel';
+                        
+                        const container = document.createElement('div');
+                        container.id = `pdf-container-${i}`;
+                        container.className = 'pdf-page-container';
+                        
+                        const img = document.createElement('img');
+                        img.id = `page-image-${i}`;
+                        img.alt = `PDF Page ${i + 1}`;
+                        container.appendChild(img);
+                        
+                        div.appendChild(container);
+                        tabContentContainer.appendChild(div);
+                    }
+                    
+                    // Update page indicator
+                    updatePageIndicator();
+                    
+                    // Load the first page
+                    loadPage(0);
+                })
+                .catch(error => {
+                    console.error('Error loading PDF info:', error);
+                    alert('Error loading PDF. Please try again.');
+                });
+        }
+
+        // Load a specific page
+        function loadPage(pageNum) {
+            // Check if already loaded
+            const img = document.getElementById(`page-image-${pageNum}`);
+            if (img.src) return;
+            
+            fetch(`{{ url_for('get_page_image', document_id=document.id) }}?page_num=${pageNum}`)
+                .then(response => response.json())
+                .then(data => {
+                    img.src = data.image;
+                    
+                    // Store page dimensions
+                    pdfPageSizes[pageNum] = {
+                        width: data.width,
+                        height: data.height
+                    };
+                })
+                .catch(error => {
+                    console.error(`Error loading page ${pageNum}:`, error);
+                });
+        }
+
+        // Navigate to a specific page
+        function navigateToPage(pageNum) {
+            // Update current page
+            currentPage = pageNum;
+            
+            // Update page indicator
+            updatePageIndicator();
+            
+            // Enable/disable navigation buttons
+            document.getElementById('prev-page').disabled = currentPage === 0;
+            document.getElementById('next-page').disabled = currentPage === totalPages - 1;
+            
+            // Load the page if not already loaded
+            loadPage(pageNum);
+            
+            // Update the form with current page
+            if (signaturePlaced && previewElements[currentPage]) {
+                document.getElementById('page').value = currentPage;
+            }
+            
+            // Activate the correct tab
+            const tabEl = document.getElementById(`page-${pageNum}-tab`);
+            const tab = new bootstrap.Tab(tabEl);
+            tab.show();
+        }
+
+        // Update page indicator
+        function updatePageIndicator() {
+            document.getElementById('page-indicator').textContent = `Page ${currentPage + 1} of ${totalPages}`;
+        }
+
+        // Make signature preview draggable
+        function makeSignatureDraggable(previewElement, pageNum) {
+            let isDragging = false;
+            let offsetX, offsetY;
+            
+            // Get the initial position
+            let initialLeft = parseInt(previewElement.style.left) || 0;
+            let initialTop = parseInt(previewElement.style.top) || 0;
+            
+            // Update form with initial position
+            if (pageNum === currentPage) {
+                document.getElementById('x').value = initialLeft;
+                document.getElementById('y').value = initialTop;
+                document.getElementById('width').value = previewElement.offsetWidth;
+                document.getElementById('height').value = previewElement.offsetHeight;
+                document.getElementById('page').value = pageNum;
+            }
+            
+            // Mouse down event for desktop
+            previewElement.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                isDragging = true;
+                
+                // Get the offset within the element where the mouse was clicked
+                const rect = previewElement.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                
+                previewElement.style.cursor = 'grabbing';
+            });
+            
+            // Mouse move event for desktop
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                
+                const container = document.getElementById(`pdf-container-${pageNum}`);
+                const containerRect = container.getBoundingClientRect();
+                
+                // Calculate the new position
+                let left = e.clientX - containerRect.left - offsetX;
+                let top = e.clientY - containerRect.top - offsetY;
+                
+                // Constrain to container boundaries
+                left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
+                top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
+                
+                // Update element position
+                previewElement.style.left = left + 'px';
+                previewElement.style.top = top + 'px';
+                
+                // Update form values if this is the current page
+                if (pageNum === currentPage) {
+                    document.getElementById('x').value = left;
+                    document.getElementById('y').value = top;
+                }
+            });
+            
+            // Mouse up event for desktop
+            document.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    previewElement.style.cursor = 'move';
+                }
+            });
+            
+            // Touch events for mobile devices
+            previewElement.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                
+                isDragging = true;
+                const rect = previewElement.getBoundingClientRect();
+                offsetX = touch.clientX - rect.left;
+                offsetY = touch.clientY - rect.top;
+            });
+            
+            document.addEventListener('touchmove', function(e) {
+                if (!isDragging) return;
+                
+                const touch = e.touches[0];
+                const container = document.getElementById(`pdf-container-${pageNum}`);
+                const containerRect = container.getBoundingClientRect();
+                
+                let left = touch.clientX - containerRect.left - offsetX;
+                let top = touch.clientY - containerRect.top - offsetY;
+                
+                left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
+                top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
+                
+                previewElement.style.left = left + 'px';
+                previewElement.style.top = top + 'px';
+                
+                if (pageNum === currentPage) {
+                    document.getElementById('x').value = left;
+                    document.getElementById('y').value = top;
+                }
+            });
+            
+            document.addEventListener('touchend', function() {
+                isDragging = false;
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,39 @@
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+.pdf-page-container {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    margin-bottom: 10px;
+    padding: 10px;
+    text-align: center;
+}
+
+#signature-pad {
+    width: 100%;
+    height: 200px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* PDF viewer styles */
+.embed-responsive {
+    position: relative;
+    width: 100%;
+}
+
+.embed-responsive-item {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
