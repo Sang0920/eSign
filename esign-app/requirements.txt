@@ -3,3 +3,4 @@ PyMuPDF
 flask
 flask-sqlalchemy
 flask-login
+gunicorn
