@@ -1,4 +1,4 @@
-Collecting workspace information# PDF eSigner Application
+# PDF eSigner Application
 
 A secure digital signature platform for PDF documents compliant with PAdES (PDF Advanced Electronic Signatures) standards. This application allows users to digitally sign PDF documents using cryptographic keys, ensuring document authenticity, integrity, and non-repudiation.
 
