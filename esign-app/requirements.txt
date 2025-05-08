@@ -1,0 +1,5 @@
+'pyHanko[pkcs11,image-support,opentype]'
+PyMuPDF
+flask
+flask-sqlalchemy
+flask-login
