@@ -1,6 +1,6 @@
 import os
 import uuid
-import json
+# import json
 from datetime import datetime
 from pathlib import Path
 from io import BytesIO
@@ -20,12 +20,10 @@ from utils.pdf import add_image_signature_to_pdf, sign_pdf_with_timestamp
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Initialize Flask extensions
 db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Create required directories
 for folder in [app.config['UPLOAD_FOLDER'], app.config['SIGNATURE_FOLDER'], app.config['KEYS_FOLDER']]:
     Path(folder).mkdir(parents=True, exist_ok=True)
 
@@ -56,7 +54,6 @@ def register():
         full_name = request.form.get('full_name')
         organization = request.form.get('organization')
         
-        # Validate input
         if not username or not email or not password or not confirm_password or not full_name:
             flash('All fields except organization are required', 'danger')
             return render_template('register.html')
@@ -65,7 +62,6 @@ def register():
             flash('Passwords do not match', 'danger')
             return render_template('register.html')
         
-        # Check if username or email already exists
         if User.query.filter_by(username=username).first():
             flash('Username already exists', 'danger')
             return render_template('register.html')
@@ -74,13 +70,11 @@ def register():
             flash('Email already exists', 'danger')
             return render_template('register.html')
         
-        # Create new user
         user = User(username=username, email=email, full_name=full_name, organization=organization)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
         
-        # Generate key pair for the user
         try:
             generate_key_pair(user, password, app.config['KEYS_FOLDER'])
             user.has_keys = True
@@ -131,8 +125,35 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    documents = Document.query.filter_by(user_id=current_user.id).order_by(Document.upload_date.desc()).all()
-    return render_template('dashboard.html', documents=documents)
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', app.config.get('DOCUMENTS_PER_PAGE', 10), type=int)
+    search = request.args.get('search', '', type=str)
+    status_filter = request.args.get('status', '', type=str)
+    
+    # Limit per_page to reasonable values
+    per_page = min(max(per_page, 5), 100)
+    
+    # Build query
+    query = Document.query.filter_by(user_id=current_user.id)
+    
+    # Apply search filter
+    if search:
+        query = query.filter(Document.original_filename.contains(search))
+    
+    # Apply status filter
+    if status_filter == 'signed':
+        query = query.filter(Document.signed == True)
+    elif status_filter == 'unsigned':
+        query = query.filter(Document.signed == False)
+    
+    documents = query.order_by(Document.upload_date.desc())\
+                    .paginate(
+                        page=page,
+                        per_page=per_page,
+                        error_out=False
+                    )
+    
+    return render_template('dashboard.html', documents=documents, search=search, status_filter=status_filter)
 
 @app.route('/upload', methods=['POST'])
 @login_required

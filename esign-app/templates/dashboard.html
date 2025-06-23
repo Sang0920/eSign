@@ -3,7 +3,16 @@
 {% block title %}PDF eSigner - Dashboard{% endblock %}
 
 {% block content %}
-<h2>Your Documents</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Your Documents</h2>
+    <div class="text-muted">
+        {% if documents.items %}
+        Showing {{ documents.per_page * (documents.page - 1) + 1 }} - 
+        {{ documents.per_page * (documents.page - 1) + documents.items|length }} 
+        of {{ documents.total }} documents
+        {% endif %}
+    </div>
+</div>
 
 <div class="card mb-4">
     <div class="card-body">
@@ -18,65 +27,165 @@
     </div>
 </div>
 
-{% if documents %}
-<div class="table-responsive">
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>File Name</th>
-                <th>Upload Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for document in documents %}
-            <tr>
-                <td>{{ document.original_filename }}</td>
-                <td>{{ document.upload_date.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td>
-                    {% if document.signed %}
-                    <span class="badge bg-success">Signed</span>
-                    {% else %}
-                    <span class="badge bg-warning text-dark">Not Signed</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <div class="btn-group" role="group">
+{% if documents.items %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Documents</h5>
+        <small class="text-muted">Page {{ documents.page }} of {{ documents.pages }}</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>File Name</th>
+                    <th>Upload Date</th>
+                    <th>Status</th>
+                    <th width="200">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for document in documents.items %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-file-earmark-pdf text-danger me-2"></i>
+                            <div>
+                                <div class="fw-medium">{{ document.original_filename }}</div>
+                                {% if document.signed %}
+                                <small class="text-muted">
+                                    Signed: {{ document.sign_date.strftime('%Y-%m-%d %H:%M') if document.sign_date else 'Unknown' }}
+                                </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div>{{ document.upload_date.strftime('%Y-%m-%d') }}</div>
+                        <small class="text-muted">{{ document.upload_date.strftime('%H:%M') }}</small>
+                    </td>
+                    <td>
                         {% if document.signed %}
-                        <a href="{{ url_for('view_document', document_id=document.id) }}"
-                            class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-eye"></i> View
-                        </a>
-                        <a href="{{ url_for('download_document', document_id=document.id) }}"
-                            class="btn btn-sm btn-outline-success">
-                            <i class="bi bi-download"></i> Download
-                        </a>
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle me-1"></i>Signed
+                        </span>
                         {% else %}
-                        <a href="{{ url_for('sign_document', document_id=document.id) }}"
-                            class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-pen"></i> Sign
-                        </a>
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-clock me-1"></i>Not Signed
+                        </span>
                         {% endif %}
-
-                        <!-- Delete button with confirmation -->
-                        <form method="POST" action="{{ url_for('delete_document', document_id=document.id) }}"
-                            style="display: inline;"
-                            onsubmit="return confirmDelete('{{ document.original_filename }}')">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">
-                                <i class="bi bi-trash"></i> Delete
-                            </button>
-                        </form>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    </td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            {% if document.signed %}
+                            <a href="{{ url_for('view_document', document_id=document.id) }}" 
+                               class="btn btn-sm btn-outline-primary" title="View Document">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            <a href="{{ url_for('download_document', document_id=document.id) }}" 
+                               class="btn btn-sm btn-outline-success" title="Download Signed Document">
+                                <i class="bi bi-download"></i> Download
+                            </a>
+                            {% else %}
+                            <a href="{{ url_for('sign_document', document_id=document.id) }}" 
+                               class="btn btn-sm btn-outline-primary" title="Sign Document">
+                                <i class="bi bi-pen"></i> Sign
+                            </a>
+                            {% endif %}
+                            
+                            <!-- Delete button with confirmation -->
+                            <form method="POST" action="{{ url_for('delete_document', document_id=document.id) }}" 
+                                  style="display: inline;" 
+                                  onsubmit="return confirmDelete('{{ document.original_filename }}')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Document">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if documents.pages > 1 %}
+    <div class="card-footer">
+        <nav aria-label="Document pagination">
+            <ul class="pagination justify-content-center mb-0">
+                <!-- Previous page -->
+                <li class="page-item {{ 'disabled' if not documents.has_prev }}">
+                    {% if documents.has_prev %}
+                    <a class="page-link" href="{{ url_for('dashboard', page=documents.prev_num) }}" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                    {% else %}
+                    <span class="page-link" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </span>
+                    {% endif %}
+                </li>
+                
+                <!-- Page numbers -->
+                {% for page_num in documents.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num != documents.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('dashboard', page=page_num) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                <!-- Next page -->
+                <li class="page-item {{ 'disabled' if not documents.has_next }}">
+                    {% if documents.has_next %}
+                    <a class="page-link" href="{{ url_for('dashboard', page=documents.next_num) }}" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                    {% else %}
+                    <span class="page-link" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </span>
+                    {% endif %}
+                </li>
+            </ul>
+        </nav>
+        
+        <!-- Page info and per-page selector -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <small class="text-muted">
+                Showing {{ documents.per_page * (documents.page - 1) + 1 }} - 
+                {{ documents.per_page * (documents.page - 1) + documents.items|length }} 
+                of {{ documents.total }} documents
+            </small>
+            
+            <div class="d-flex align-items-center">
+                <label for="perPageSelect" class="form-label me-2 mb-0">Documents per page:</label>
+                <select class="form-select form-select-sm" id="perPageSelect" onchange="changePerPage(this.value)" style="width: auto;">
+                    <option value="5" {{ 'selected' if documents.per_page == 5 }}>5</option>
+                    <option value="10" {{ 'selected' if documents.per_page == 10 }}>10</option>
+                    <option value="20" {{ 'selected' if documents.per_page == 20 }}>20</option>
+                    <option value="50" {{ 'selected' if documents.per_page == 50 }}>50</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% else %}
 <div class="alert alert-info">
-    You haven't uploaded any documents yet. Upload a PDF to get started.
+    <h4><i class="bi bi-info-circle me-2"></i>No documents uploaded yet</h4>
+    <p>Upload your first PDF document to get started with digital signing.</p>
+    <p class="mb-0">Supported format: PDF files up to 16MB</p>
 </div>
 {% endif %}
 
@@ -85,17 +194,26 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Confirm Delete</h5>
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                    Confirm Delete
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete <strong id="deleteFileName"></strong>?</p>
-                <p class="text-muted">This action cannot be undone. Both the original and signed versions (if any) will
-                    be permanently deleted.</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-warning me-2"></i>
+                    <strong>This action cannot be undone.</strong> Both the original and signed versions (if any) will be permanently deleted.
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Document</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="bi bi-trash me-1"></i>Delete Document
+                </button>
             </div>
         </div>
     </div>
@@ -104,28 +222,42 @@
 
 {% block scripts %}
 <script>
-    let deleteForm = null;
+let deleteForm = null;
 
-    function confirmDelete(filename) {
-        event.preventDefault();
-        deleteForm = event.target;
-        document.getElementById('deleteFileName').textContent = filename;
+function confirmDelete(filename) {
+    event.preventDefault();
+    deleteForm = event.target;
+    document.getElementById('deleteFileName').textContent = filename;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+    
+    return false;
+}
 
-        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        modal.show();
-
-        return false;
+document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+    if (deleteForm) {
+        deleteForm.submit();
     }
+});
 
-    document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
-        if (deleteForm) {
-            deleteForm.submit();
+function changePerPage(perPage) {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('per_page', perPage);
+    urlParams.set('page', '1'); // Reset to first page when changing per_page
+    window.location.search = urlParams.toString();
+}
+
+// Handle per_page parameter from URL
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const perPage = urlParams.get('per_page');
+    if (perPage) {
+        const select = document.getElementById('perPageSelect');
+        if (select) {
+            select.value = perPage;
         }
-    });
-
-    // Alternative simple confirmation (you can use this instead of the modal)
-    function simpleConfirmDelete(filename) {
-        return confirm(`Are you sure you want to delete "${filename}"?\n\nThis action cannot be undone. Both the original and signed versions (if any) will be permanently deleted.`);
     }
+});
 </script>
 {% endblock %}

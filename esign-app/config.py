@@ -25,3 +25,7 @@ class Config:
     
     # Timestamp Authority
     TSA_URL = "http://timestamp.digicert.com"
+
+    # Pagination settings
+    DOCUMENTS_PER_PAGE = 10
+    SIGNATURES_PER_PAGE = 12
