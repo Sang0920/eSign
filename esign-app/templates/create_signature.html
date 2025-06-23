@@ -26,8 +26,8 @@
                 <form id="signature-form" method="POST" action="{{ url_for('create_signature') }}">
                     <div class="mb-3">
                         <label for="name" class="form-label">Signature Name</label>
-                        <input type="text" class="form-control" id="name" name="name" required 
-                               placeholder="e.g., My Official Signature">
+                        <input type="text" class="form-control" id="name" name="name" required
+                            placeholder="e.g., My Official Signature">
                         <div class="form-text">Give your signature a name to easily identify it later.</div>
                     </div>
 
@@ -52,7 +52,8 @@
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('manage_signatures') }}" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" id="save-signature" class="btn btn-primary" disabled>Save Signature</button>
+                        <button type="submit" id="save-signature" class="btn btn-primary" disabled>Save
+                            Signature</button>
                     </div>
                 </form>
             </div>
@@ -125,7 +126,7 @@
             const dataUrl = signaturePad.toDataURL('image/png');
             const previewDiv = document.getElementById('signature-preview');
             previewDiv.innerHTML = `<img src="${dataUrl}" style="max-width: 100%; height: auto;">`;
-            
+
             const modal = new bootstrap.Modal(document.getElementById('previewModal'));
             modal.show();
         });

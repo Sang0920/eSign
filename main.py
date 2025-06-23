@@ -21,21 +21,17 @@ from cryptography.x509.oid import NameOID
 import datetime
 from cryptography import x509
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('pdf_signer')
 
-# --- Configuration ---
 input_pdf_path = Path("asset/PDFs/NPComplete.pdf")
 output_pdf_path = Path("asset/PDFs/output_signed_timestamped.pdf")
 
-# Certificate and Key
 cert_path = Path("trust_store/certificate_v3.crt")
 key_path = Path("trust_store/private_key.pem")
 key_is_encrypted = True
 
-# Signature Metadata
 signature_meta_config = {
     "location": "Ho Chi Minh City, VN",
     "contact_info": "dothesang20@gmail.com",
@@ -43,7 +39,6 @@ signature_meta_config = {
     "reason": "I approve this document"
 }
 
-# Timestamp Configuration
 TSA_URL = "http://timestamp.digicert.com"
 
 # ------------------------------------------------------------------------
@@ -71,18 +66,14 @@ class CryptoAlgorithms:
         if isinstance(message, str):
             message = message.encode('utf-8')
             
-        # Step 1: Initialize hash object
         hash_obj = hashlib.sha256()
         
-        # Step 2: Update hash with message
         hash_obj.update(message)
         
-        # Step 3: Get digest in different formats
         hex_digest = hash_obj.hexdigest()
         binary_digest = hash_obj.digest()
         base64_digest = base64.b64encode(binary_digest).decode('ascii')
         
-        # Return detailed steps for educational purposes
         return {
             'algorithm': 'SHA-256',
             'input_message': message,
@@ -111,33 +102,25 @@ class CryptoAlgorithms:
         if isinstance(message, str):
             message = message.encode('utf-8')
             
-        # Step 1: Prepare key
         block_size = 64  # SHA-256 block size is 64 bytes
         
         if len(key) > block_size:
-            # If key is longer than block size, hash it
             key = hashlib.sha256(key).digest()
-        if len(key) < block_size:
-            # If key is shorter than block size, pad it with zeros
+        if len(key) < block_size: # If key is shorter than block size, pad it with zeros
             key = key + b'\x00' * (block_size - len(key))
             
-        # Step 2: Prepare inner and outer padding
         inner_pad = bytes(x ^ 0x36 for x in key)  # XOR with 0x36
         outer_pad = bytes(x ^ 0x5C for x in key)  # XOR with 0x5C
         
-        # Step 3: Compute inner hash
         inner_hash = hashlib.sha256(inner_pad + message).digest()
         
-        # Step 4: Compute outer hash (final HMAC)
         hmac_digest = hashlib.sha256(outer_pad + inner_hash).digest()
         hmac_hex = binascii.hexlify(hmac_digest).decode('ascii')
         
-        # Alternative using the hmac module (to verify correctness)
         hmac_obj = hmac.new(key, message, hashlib.sha256)
         standard_hmac = hmac_obj.digest()
         standard_hmac_hex = hmac_obj.hexdigest()
         
-        # Return detailed steps for educational purposes
         return {
             'algorithm': 'HMAC-SHA256',
             'key_length': len(key),
@@ -170,11 +153,9 @@ class CryptoAlgorithms:
         if isinstance(message, str) and encrypt:
             message = message.encode('utf-8')
             
-        # Key size validation
         if len(key) not in (16, 24, 32):
             raise ValueError("AES key must be 16, 24, or 32 bytes (128, 192, or 256 bits)")
             
-        # Step 1: Generate or validate IV
         if iv is None and encrypt:
             iv = os.urandom(16)  # AES block size is 16 bytes
         elif iv is None and not encrypt:
@@ -182,7 +163,6 @@ class CryptoAlgorithms:
         elif len(iv) != 16:
             raise ValueError("IV must be 16 bytes")
             
-        # Step 2: Apply padding for encryption
         if encrypt:
             padder = padding.PKCS7(algorithms.AES.block_size).padder()
             padded_data = padder.update(message) + padder.finalize()
@@ -190,7 +170,6 @@ class CryptoAlgorithms:
         else:
             data_to_process = message
             
-        # Step 3: Create cipher and encryptor/decryptor
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
         
         if encrypt:
@@ -200,10 +179,8 @@ class CryptoAlgorithms:
             processor = cipher.decryptor()
             operation = "Decryption"
             
-        # Step 4: Process the data
         result = processor.update(data_to_process) + processor.finalize()
         
-        # Step 5: Remove padding for decryption
         if not encrypt:
             unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
             try:
@@ -214,7 +191,6 @@ class CryptoAlgorithms:
                     'error': f"Padding error: {str(e)}. This may indicate an incorrect key, IV, or ciphertext."
                 }
         
-        # Return detailed steps for educational purposes
         return {
             'success': True,
             'algorithm': f'AES-{len(key)*8}-CBC',
@@ -248,19 +224,15 @@ class CryptoAlgorithms:
         if isinstance(message, str) and encrypt:
             message = message.encode('utf-8')
             
-        # Step 1: Load the key
-        if is_private:
-            # For private key, check if it's encrypted or not
+        if is_private: # For private key, check if it's encrypted or not
             try:
                 key_obj = load_pem_private_key(key, password=None)
-            except TypeError:
-                # Key is encrypted, we'll need a password
+            except TypeError: # Key is encrypted, we'll need a password
                 password = getpass.getpass("Enter private key password: ").encode('utf-8')
                 key_obj = load_pem_private_key(key, password=password)
         else:
             key_obj = load_pem_public_key(key)
             
-        # Step 2: Determine key properties
         if is_private:
             key_size = key_obj.key_size
             public_numbers = key_obj.public_key().public_numbers()
@@ -272,9 +244,7 @@ class CryptoAlgorithms:
             public_exponent = public_numbers.e
             modulus = public_numbers.n
             
-        # Step 3: Encrypt/decrypt or sign/verify
-        if encrypt and not is_private:
-            # Public key encryption
+        if encrypt and not is_private: # Public key encryption
             ciphertext = key_obj.encrypt(
                 message,
                 asym_padding.OAEP(
@@ -285,8 +255,7 @@ class CryptoAlgorithms:
             )
             operation = "Encryption (public key)"
             result = ciphertext
-        elif not encrypt and is_private:
-            # Private key decryption
+        elif not encrypt and is_private: # Private key decryption
             try:
                 plaintext = key_obj.decrypt(
                     message,
@@ -303,8 +272,7 @@ class CryptoAlgorithms:
                     'success': False,
                     'error': f"Decryption error: {str(e)}. This may indicate incorrect key or ciphertext."
                 }
-        elif encrypt and is_private:
-            # Private key signing
+        elif encrypt and is_private: # Private key signing
             signature = key_obj.sign(
                 message,
                 asym_padding.PSS(
@@ -315,12 +283,9 @@ class CryptoAlgorithms:
             )
             operation = "Signing (private key)"
             result = signature
-        elif not encrypt and not is_private:
-            # Public key verification
+        elif not encrypt and not is_private: # Public key verification
             try:
-                # For verification, message is the original message, and we need a separate signature
                 signature = message  # In this case, message is actually the signature
-                # We would need the original message to verify, but here we're just showing the process
                 # key_obj.verify(signature, original_message, padding, algorithm)
                 operation = "Verification (public key)"
                 result = b"Verification would be performed here with original message"
@@ -330,7 +295,6 @@ class CryptoAlgorithms:
                     'error': f"Verification error: {str(e)}"
                 }
         
-        # Return detailed steps for educational purposes
         return {
             'success': True,
             'algorithm': 'RSA',
@@ -352,8 +316,6 @@ class CryptoAlgorithms:
 class OpenSSLPython:
     """
     Class providing Python equivalents to OpenSSL CLI commands.
-    For the "Nghiên cứu về các giải thuật mã hóa và hàm băm để xây dựng 
-    ứng dụng chứng thực thông điệp" project.
     """
     
     @staticmethod
@@ -371,14 +333,12 @@ class OpenSSLPython:
         Returns:
             Path to the generated key file
         """
-        # Generate private key
         private_key = rsa.generate_private_key(
             public_exponent=exponent,
             key_size=bits
         )
         
-        # Determine encryption algorithm based on whether passphrase is provided
-        if passphrase:
+        if passphrase: # Determine encryption algorithm based on whether passphrase is provided
             if isinstance(passphrase, str):
                 passphrase = passphrase.encode('utf-8')
                 
@@ -386,8 +346,7 @@ class OpenSSLPython:
         else:
             encryption_algorithm = NoEncryption()
             
-        # Serialize and save the private key
-        with open(output_file, 'wb') as f:
+        with open(output_file, 'wb') as f: # Serialize and save the private key
             f.write(private_key.private_bytes(
                 encoding=Encoding.PEM,
                 format=PrivateFormat.PKCS8,
@@ -411,11 +370,9 @@ class OpenSSLPython:
         Returns:
             Path to the extracted public key
         """
-        # Read private key
         with open(private_key_file, 'rb') as f:
             private_key_data = f.read()
             
-        # Load private key
         if passphrase:
             if isinstance(passphrase, str):
                 passphrase = passphrase.encode('utf-8')
@@ -424,10 +381,8 @@ class OpenSSLPython:
         else:
             private_key = load_pem_private_key(private_key_data, password=None)
             
-        # Extract public key
         public_key = private_key.public_key()
         
-        # Serialize and save the public key
         with open(output_file, 'wb') as f:
             f.write(public_key.public_bytes(
                 encoding=Encoding.PEM,
@@ -456,11 +411,9 @@ class OpenSSLPython:
         Returns:
             Path to the generated certificate
         """
-        # Read private key
         with open(private_key_file, 'rb') as f:
             private_key_data = f.read()
             
-        # Load private key
         if passphrase:
             if isinstance(passphrase, str):
                 passphrase = passphrase.encode('utf-8')
@@ -469,7 +422,6 @@ class OpenSSLPython:
         else:
             private_key = load_pem_private_key(private_key_data, password=None)
             
-        # Create certificate subject
         subject = x509.Name([
             x509.NameAttribute(NameOID.COUNTRY_NAME, country),
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, state),
@@ -480,11 +432,9 @@ class OpenSSLPython:
             x509.NameAttribute(NameOID.EMAIL_ADDRESS, email)
         ])
         
-        # Calculate validity period
         now = datetime.datetime.utcnow()
         validity_end = now + datetime.timedelta(days=days)
         
-        # Create certificate
         cert_builder = x509.CertificateBuilder().subject_name(
             subject
         ).issuer_name(
@@ -521,13 +471,11 @@ class OpenSSLPython:
             critical=True
         )
         
-        # Sign the certificate with the private key
         certificate = cert_builder.sign(
             private_key,
             hashes.SHA256()
         )
         
-        # Serialize and save the certificate
         with open(output_cert, 'wb') as f:
             f.write(certificate.public_bytes(Encoding.PEM))
             
@@ -546,14 +494,11 @@ class OpenSSLPython:
         Returns:
             Dictionary containing certificate details
         """
-        # Read certificate
         with open(cert_file, 'rb') as f:
             cert_data = f.read()
             
-        # Load certificate
         cert = load_pem_x509_certificate(cert_data)
         
-        # Extract certificate details
         subject = cert.subject
         issuer = cert.issuer
         valid_from = cert.not_valid_before
@@ -562,27 +507,23 @@ class OpenSSLPython:
         version = cert.version
         signature_algorithm = cert.signature_algorithm_oid._name
         
-        # Extract subject components
         subject_dict = {}
         for attr in subject:
             oid_name = attr.oid._name
             value = attr.value
             subject_dict[oid_name] = value
             
-        # Extract issuer components
         issuer_dict = {}
         for attr in issuer:
             oid_name = attr.oid._name
             value = attr.value
             issuer_dict[oid_name] = value
             
-        # Extract extensions
         extensions = {}
         for ext in cert.extensions:
             ext_name = ext.oid._name
             extensions[ext_name] = str(ext.value)
             
-        # Format the results
         cert_info = {
             'version': version.name,
             'serial_number': f"{serial:x}",
@@ -615,16 +556,13 @@ class OpenSSLPython:
         Returns:
             Dictionary containing hash result
         """
-        # Check file exists
         if not Path(file_path).exists():
             return {'error': f"File not found: {file_path}"}
             
-        # Select hash algorithm
         hash_func = getattr(hashlib, algorithm, None)
         if not hash_func:
             return {'error': f"Unsupported hash algorithm: {algorithm}"}
             
-        # Calculate hash
         hash_obj = hash_func()
         with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(4096), b''):
@@ -656,7 +594,6 @@ def sign_pdf_with_timestamp(
     field_name = meta.get('field_name', 'Signature1')
     
     try:
-        # Load signer credentials
         signer = signers.SimpleSigner.load(
             key_file=str(key_file),
             cert_file=str(cert_file),
@@ -664,7 +601,6 @@ def sign_pdf_with_timestamp(
         )
         logger.info("Signer certificate loaded successfully.")
         
-        # Create timestamp client if URL provided
         timestamper = None
         if tsa_url:
             timestamper = timestamps.HTTPTimeStamper(tsa_url)
@@ -675,27 +611,20 @@ def sign_pdf_with_timestamp(
         return False
 
     try:
-        # Open the input PDF
         with open(input_path, 'rb') as inf:
-            # Create the writer for generating a new revision with signature
             w = IncrementalPdfFileWriter(inf)
             
-            # Load certificate properly instead of using raw bytes
             with open(cert_file, 'rb') as cert_data:
                 cert_bytes = cert_data.read()
-                # Parse the certificate to get a certificate object
                 try:
                     from asn1crypto import pem, x509 as asn1_x509
                     
-                    # Check if it's PEM format
                     if pem.detect(cert_bytes):
                         _, _, cert_bytes = pem.unarmor(cert_bytes)
                     
-                    # Create validation context without using trust_roots
                     validation_context = ValidationContext()
                     
                 except ImportError:
-                    # Fallback to a simpler approach if asn1crypto is not available
                     logger.warning("asn1crypto not available, falling back to simpler signing method")
                     return sign_pdf_simple_timestamp(
                         input_path=input_path,
@@ -707,7 +636,6 @@ def sign_pdf_with_timestamp(
                         meta=meta
                     )
             
-            # Create signature metadata - not using validation context to avoid the error
             cms_meta = PdfSignatureMetadata(
                 field_name=field_name,
                 reason=meta.get('reason'),
@@ -717,13 +645,11 @@ def sign_pdf_with_timestamp(
                 md_algorithm='sha256'
             )
             
-            # Create signature field specification
             sig_field_spec = SigFieldSpec(
                 sig_field_name=field_name,
                 box=(50, 50, 250, 100)  # Position the signature field
             )
             
-            # Sign the PDF 
             with open(output_path, 'wb') as out:
                 signers.sign_pdf(
                     pdf_out=w,
@@ -745,7 +671,7 @@ def sign_pdf_with_timestamp(
         return False
 
 # --- Alternative option without validation info ---
-def sign_pdf_simple_timestamp(
+def sign_pdf_simple_timestamp( 
     input_path: Path,
     output_path: Path,
     cert_file: Path,
@@ -764,7 +690,6 @@ def sign_pdf_simple_timestamp(
     field_name = meta.get('field_name', 'Signature1')
     
     try:
-        # Load signer credentials
         signer = signers.SimpleSigner.load(
             key_file=str(key_file),
             cert_file=str(cert_file),
@@ -772,7 +697,6 @@ def sign_pdf_simple_timestamp(
         )
         logger.info("Signer certificate loaded successfully.")
         
-        # Create timestamp client if URL provided
         timestamper = None
         if tsa_url:
             timestamper = timestamps.HTTPTimeStamper(tsa_url)
@@ -783,12 +707,9 @@ def sign_pdf_simple_timestamp(
         return False
 
     try:
-        # Open the input PDF
         with open(input_path, 'rb') as inf:
-            # Create the writer for generating a new revision with signature
             w = IncrementalPdfFileWriter(inf)
             
-            # Create signature metadata without validation info
             cms_meta = PdfSignatureMetadata(
                 field_name=field_name,
                 reason=meta.get('reason'),
@@ -799,13 +720,11 @@ def sign_pdf_simple_timestamp(
                 # No embed_validation_info here
             )
             
-            # Create signature field specification
             sig_field_spec = SigFieldSpec(
                 sig_field_name=field_name,
                 box=(50, 50, 250, 100)  # Position the signature field
             )
             
-            # Sign the PDF 
             with open(output_path, 'wb') as out:
                 signers.sign_pdf(
                     pdf_out=w,
@@ -835,33 +754,26 @@ def run_crypto_demos():
     
     logger.info("Running cryptographic algorithm demonstrations")
     
-    # 1. SHA-256 demonstration
     message = "Nghiên cứu về các giải thuật mã hóa và hàm băm để xây dựng ứng dụng chứng thực thông điệp"
     sha256_result = CryptoAlgorithms.sha256_manual(message)
     logger.info(f"SHA-256 of message: {sha256_result['hex_digest']}")
     
-    # 2. HMAC-SHA256 demonstration
     key = "huit-secret-key-2025"
     hmac_result = CryptoAlgorithms.hmac_sha256_manual(key, message)
     logger.info(f"HMAC-SHA256 of message: {hmac_result['hmac_hex']}")
     
-    # 3. AES-CBC demonstration
     aes_key = os.urandom(32)  # 256-bit key
     iv = os.urandom(16)       # 128-bit IV
     
-    # Encrypt
     encrypt_result = CryptoAlgorithms.aes_cbc_manual(aes_key, message, encrypt=True, iv=iv)
     logger.info(f"AES-256-CBC encrypted: {encrypt_result['result_base64']}")
     
-    # Decrypt
     decrypt_result = CryptoAlgorithms.aes_cbc_manual(aes_key, encrypt_result['result'], encrypt=False, iv=iv)
     if decrypt_result['success']:
         decrypted_text = decrypt_result['result'].decode('utf-8')
         logger.info(f"AES-256-CBC decrypted: {decrypted_text}")
         logger.info(f"Decryption successful: {decrypted_text == message}")
-    
-    # Note: RSA demo would require generating keys first, which is covered in the OpenSSLPython class
-    
+        
     logger.info("Cryptographic algorithm demonstrations completed")
     return {
         'sha256': sha256_result,
@@ -870,18 +782,12 @@ def run_crypto_demos():
         'aes_decrypt': decrypt_result
     }
 
-# --- Main Execution ---
 if __name__ == "__main__":
-    # Display current date and user info
     current_time = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Current Date and Time (UTC): {current_time}")
     logger.info("Current User's Login: Sang0920")
     logger.info("Project: Nghiên cứu về các giải thuật mã hóa và hàm băm để xây dựng ứng dụng chứng thực thông điệp")
     
-    # Choose which functionality to run
-    # 1. PDF signing
-    # 2. Crypto algorithm demos
-    # 3. OpenSSL equivalents
     action = 1  # Default to PDF signing
     
     try:
@@ -890,11 +796,9 @@ if __name__ == "__main__":
         logger.info("Invalid selection, defaulting to PDF signing")
     
     if action == 2:
-        # Run cryptographic algorithm demonstrations
         demo_results = run_crypto_demos()
         exit(0)
     elif action == 3:
-        # Run OpenSSL equivalent operations
         try:
             openssl_action = int(input(
                 "Select OpenSSL operation:\n"
@@ -928,7 +832,6 @@ if __name__ == "__main__":
                 use_passphrase = input("Is private key encrypted? (y/n): ").lower() == 'y'
                 passphrase = getpass.getpass("Enter passphrase: ") if use_passphrase else None
                 
-                # Use default values for certificate fields, or prompt for them
                 use_defaults = input("Use default certificate fields? (y/n): ").lower() == 'y'
                 
                 if use_defaults:
@@ -952,7 +855,6 @@ if __name__ == "__main__":
                 cert_file = input("Certificate file: ")
                 cert_info = OpenSSLPython.view_certificate(cert_file)
                 
-                # Display certificate info
                 print("\nCertificate details:")
                 print(f"Version: {cert_info['version']}")
                 print(f"Serial Number: {cert_info['serial_number']}")
@@ -991,10 +893,7 @@ if __name__ == "__main__":
             logger.error(f"Error performing OpenSSL operation: {e}")
             
         exit(0)
-    
-    # Continue with PDF signing if action == 1 or invalid
-    
-    # 1. Basic Input Checks
+        
     if not input_pdf_path.is_file():
         logger.error(f"Error: Input PDF not found at '{input_pdf_path}'")
         exit(1)
@@ -1005,7 +904,6 @@ if __name__ == "__main__":
         logger.error(f"Error: Private key file not found at '{key_path}'")
         exit(1)
 
-    # 2. Get Key Passphrase if needed
     passphrase = None
     if key_is_encrypted:
         try:
@@ -1017,7 +915,6 @@ if __name__ == "__main__":
             logger.error("Passphrase not provided. Exiting.")
             exit(1)
 
-    # 3. First try with simplified signing
     logger.info("Attempting to sign PDF with timestamp...")
     success = sign_pdf_simple_timestamp(
         input_path=input_pdf_path,

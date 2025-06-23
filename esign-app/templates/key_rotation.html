@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Key Rotation{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Certificate and Key Rotation</h2>
+
+    {% if rotation_check.should_rotate %}
+    <div
+        class="alert alert-{{ 'danger' if rotation_check.urgency == 'critical' else 'warning' if rotation_check.urgency == 'high' else 'info' }}">
+        <h5>
+            {% if rotation_check.urgency == 'critical' %}
+            <i class="bi bi-exclamation-triangle"></i> Immediate Action Required
+            {% elif rotation_check.urgency == 'high' %}
+            <i class="bi bi-exclamation-circle"></i> Key Rotation Recommended
+            {% else %}
+            <i class="bi bi-info-circle"></i> Key Rotation Suggested
+            {% endif %}
+        </h5>
+        <ul class="mb-0">
+            {% for reason in rotation_check.reasons %}
+            <li>{{ reason }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> Your certificate and keys are in good condition.
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Rotate Certificate and Keys</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Important:</strong> Key rotation will generate new certificate and private key.
+                            You will need to log in again after rotation.
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password*</label>
+                            <input type="password" class="form-control" id="current_password" name="current_password"
+                                required>
+                            <div class="form-text">Required to verify access to current keys</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password (optional)</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password">
+                            <div class="form-text">Leave blank to keep current password</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password">
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-arrow-clockwise"></i> Rotate Keys and Certificate
+                            </button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            {% if rotation_check.certificate_info %}
+            <div class="card">
+                <div class="card-header">
+                    <h6>Current Certificate</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Expires:</strong></td>
+                            <td>{{ rotation_check.certificate_info.expires[:10] }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Days Left:</strong></td>
+                            <td>{{ rotation_check.certificate_info.days_until_expiry }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Key Size:</strong></td>
+                            <td>{{ rotation_check.certificate_info.key_size }} bits</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Age:</strong></td>
+                            <td>{{ rotation_check.certificate_info.age_days }} days</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('new_password').addEventListener('input', function () {
+        const confirmField = document.getElementById('confirm_password');
+        if (this.value) {
+            confirmField.required = true;
+        } else {
+            confirmField.required = false;
+            confirmField.value = '';
+        }
+    });
+</script>
+{% endblock %}

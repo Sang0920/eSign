@@ -9,17 +9,14 @@ from pathlib import Path
 
 def generate_key_pair(user, password, keys_folder):
     """Generate RSA key pair and self-signed certificate for a user"""
-    # Create user folder in keys directory
     user_keys_folder = Path(keys_folder) / str(user.id)
     user_keys_folder.mkdir(parents=True, exist_ok=True)
     
-    # Generate private key
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048
     )
     
-    # Create certificate subject
     subject = x509.Name([
         x509.NameAttribute(NameOID.COUNTRY_NAME, "VN"),
         x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Ho Chi Minh City"),
@@ -29,7 +26,6 @@ def generate_key_pair(user, password, keys_folder):
         x509.NameAttribute(NameOID.EMAIL_ADDRESS, user.email),
     ])
     
-    # Create self-signed certificate
     cert_builder = x509.CertificateBuilder()
     cert_builder = cert_builder.subject_name(subject)
     cert_builder = cert_builder.issuer_name(subject)  # Self-signed
@@ -54,22 +50,18 @@ def generate_key_pair(user, password, keys_folder):
         ), critical=True
     )
     
-    # Sign the certificate with the private key
     certificate = cert_builder.sign(
         private_key=private_key, algorithm=hashes.SHA256()
     )
     
-    # Serialize the private key with password encryption
     encrypted_key = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.BestAvailableEncryption(password.encode())
     )
     
-    # Serialize the certificate
     cert_pem = certificate.public_bytes(serialization.Encoding.PEM)
     
-    # Save private key and certificate
     private_key_path = user_keys_folder / 'private_key.pem'
     cert_path = user_keys_folder / 'certificate.pem'
     

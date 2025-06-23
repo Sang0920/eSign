@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Certificate Key Status Check{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Certificate and Key Status Check</h2>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        {% if rotation_check.should_rotate %}
+                        {% if rotation_check.urgency == 'critical' %}
+                        <i class="bi bi-exclamation-triangle text-danger"></i> Critical: Action Required
+                        {% elif rotation_check.urgency == 'high' %}
+                        <i class="bi bi-exclamation-circle text-warning"></i> Key Rotation Recommended
+                        {% elif rotation_check.urgency == 'medium' %}
+                        <i class="bi bi-info-circle text-info"></i> Key Rotation Suggested
+                        {% else %}
+                        <i class="bi bi-check-circle text-success"></i> Key Status Check
+                        {% endif %}
+                        {% else %}
+                        <i class="bi bi-check-circle text-success"></i> Certificate and Keys are Healthy
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if rotation_check.should_rotate %}
+                    <div
+                        class="alert alert-{{ 'danger' if rotation_check.urgency == 'critical' else 'warning' if rotation_check.urgency == 'high' else 'info' }}">
+                        <h6><strong>Issues Found:</strong></h6>
+                        <ul class="mb-3">
+                            {% for reason in rotation_check.reasons %}
+                            <li>{{ reason }}</li>
+                            {% endfor %}
+                        </ul>
+
+                        <h6><strong>Recommendations:</strong></h6>
+                        <ul class="mb-0">
+                            {% for recommendation in rotation_check.recommendations %}
+                            <li>{{ recommendation }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('rotate_keys') }}"
+                            class="btn btn-{{ 'danger' if rotation_check.urgency == 'critical' else 'warning' if rotation_check.urgency == 'high' else 'primary' }}">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            {% if rotation_check.urgency == 'critical' %}
+                            Rotate Keys Now
+                            {% else %}
+                            Schedule Key Rotation
+                            {% endif %}
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i>
+                        <strong>All Good!</strong> Your certificate and keys are in excellent condition.
+                        No action is required at this time.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            {% if rotation_check.certificate_info %}
+            <div class="card">
+                <div class="card-header">
+                    <h6>Certificate Details</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Expires:</strong></td>
+                            <td>{{ rotation_check.certificate_info.expires[:10] if
+                                rotation_check.certificate_info.expires else 'Unknown' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Days Remaining:</strong></td>
+                            <td>
+                                {% if rotation_check.certificate_info.days_until_expiry is not none %}
+                                {% if rotation_check.certificate_info.days_until_expiry <= 0 %} <span
+                                    class="text-danger">Expired</span>
+                                    {% elif rotation_check.certificate_info.days_until_expiry <= 30 %} <span
+                                        class="text-warning">{{ rotation_check.certificate_info.days_until_expiry }}
+                                        days</span>
+                                        {% else %}
+                                        <span class="text-success">{{ rotation_check.certificate_info.days_until_expiry
+                                            }} days</span>
+                                        {% endif %}
+                                        {% else %}
+                                        Unknown
+                                        {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Key Size:</strong></td>
+                            <td>
+                                {% if rotation_check.certificate_info.key_size != 'unknown' %}
+                                {% if rotation_check.certificate_info.key_size >= 2048 %}
+                                <span class="text-success">{{ rotation_check.certificate_info.key_size }} bits</span>
+                                {% else %}
+                                <span class="text-warning">{{ rotation_check.certificate_info.key_size }} bits</span>
+                                {% endif %}
+                                {% else %}
+                                Unknown
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Certificate Age:</strong></td>
+                            <td>{{ rotation_check.certificate_info.age_days }} days</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Quick Actions -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6>Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('validate_certificate') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-shield-check"></i> Validate Certificate
+                        </a>
+                        <a href="{{ url_for('rotate_keys') }}" class="btn btn-outline-warning btn-sm">
+                            <i class="bi bi-arrow-clockwise"></i> Rotate Keys
+                        </a>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-house"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Information -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="bi bi-info-circle"></i> About Key Rotation</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Why Rotate Keys?</h6>
+                            <ul class="small">
+                                <li>Certificates expire and need renewal</li>
+                                <li>Stronger encryption standards emerge</li>
+                                <li>Security best practices recommend periodic rotation</li>
+                                <li>Compliance with organizational policies</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Rotation Process</h6>
+                            <ul class="small">
+                                <li>Existing keys are safely backed up</li>
+                                <li>New certificate and key pair generated</li>
+                                <li>All data is verified before completion</li>
+                                <li>Automatic rollback if any issues occur</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

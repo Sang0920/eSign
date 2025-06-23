@@ -1,11 +1,11 @@
 import os
 import uuid
-# import json
 from datetime import datetime
 from pathlib import Path
 from io import BytesIO
 import base64
 from PIL import Image
+import click
 import fitz  # PyMuPDF
 
 from flask import Flask, render_template, redirect, url_for, flash, request, session, send_from_directory, jsonify
@@ -13,10 +13,12 @@ from flask_login import LoginManager, current_user, login_user, logout_user, log
 from werkzeug.utils import secure_filename
 
 from config import Config
-from models import db, User, Document, SavedSignature
+from models import db, User, Document, SavedSignature, CertificateValidation, KeyRotationHistory
 from utils.crypto import generate_key_pair
 from utils.pdf import add_image_signature_to_pdf, sign_pdf_with_timestamp
 from utils.security import password_manager
+from utils.certificate_validation import certificate_validator
+from utils.key_rotation import key_rotation_manager
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -30,7 +32,8 @@ for folder in [app.config['UPLOAD_FOLDER'], app.config['SIGNATURE_FOLDER'], app.
 
 @login_manager.user_loader
 def load_user(id):
-    return User.query.get(int(id))
+    from sqlalchemy.orm import sessionmaker
+    return db.session.get(User, int(id))
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -88,36 +91,6 @@ def register():
     
     return render_template('register.html')
 
-# @app.route('/login', methods=['GET', 'POST'])
-# def login():
-#     if current_user.is_authenticated:
-#         return redirect(url_for('dashboard'))
-    
-#     if request.method == 'POST':
-#         username = request.form.get('username')
-#         password = request.form.get('password')
-#         remember_me = 'remember_me' in request.form
-        
-#         user = User.query.filter_by(username=username).first()
-        
-#         if user is None or not user.check_password(password):
-#             flash('Invalid username or password', 'danger')
-#             return render_template('login.html')
-        
-#         login_user(user, remember=remember_me)
-#         next_page = request.args.get('next')
-#         if not next_page or not next_page.startswith('/'):
-#             next_page = url_for('dashboard')
-        
-#         # Store the password in session for signing PDFs (in real production, use a more secure method)
-#         session['signing_password'] = password
-            
-#         return redirect(next_page)
-    
-#     return render_template('login.html')
-
-from utils.security import password_manager
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -165,13 +138,6 @@ def confirm_password():
         'redirect_url': url_for('sign_document', document_id=document_id) if operation == 'sign' else None
     })
 
-# @app.route('/logout')
-# def logout():
-#     if 'signing_password' in session:
-#         session.pop('signing_password')
-#     logout_user()
-#     return redirect(url_for('index'))
-
 @app.route('/logout')
 def logout():
     password_manager.clear_password_session()
@@ -186,17 +152,13 @@ def dashboard():
     search = request.args.get('search', '', type=str)
     status_filter = request.args.get('status', '', type=str)
     
-    # Limit per_page to reasonable values
     per_page = min(max(per_page, 5), 100)
     
-    # Build query
     query = Document.query.filter_by(user_id=current_user.id)
     
-    # Apply search filter
     if search:
         query = query.filter(Document.original_filename.contains(search))
     
-    # Apply status filter
     if status_filter == 'signed':
         query = query.filter(Document.signed == True)
     elif status_filter == 'unsigned':
@@ -225,12 +187,10 @@ def upload_file():
         return redirect(url_for('dashboard'))
     
     if file and allowed_file(file.filename):
-        # Generate a unique filename
         filename = str(uuid.uuid4()) + '.pdf'
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
         
-        # Save document info to database
         document = Document(
             filename=filename,
             original_filename=secure_filename(file.filename),
@@ -244,184 +204,6 @@ def upload_file():
     
     flash('Invalid file type. Only PDF files are allowed.', 'danger')
     return redirect(url_for('dashboard'))
-
-# @app.route('/sign/<int:document_id>', methods=['GET', 'POST'])
-# @login_required
-# def sign_document(document_id):
-#     document = Document.query.get_or_404(document_id)
-    
-#     # Check if document belongs to the current user
-#     if document.user_id != current_user.id:
-#         flash('Document not found', 'danger')
-#         return redirect(url_for('dashboard'))
-    
-#     if request.method == 'POST':
-#         # Check if using saved signature or new signature
-#         signature_source = request.form.get('signature_source', 'new')
-        
-#         if signature_source == 'saved':
-#             signature_id = request.form.get('saved_signature_id')
-#             if not signature_id:
-#                 flash('Please select a saved signature', 'danger')
-#                 return redirect(url_for('sign_document', document_id=document_id))
-            
-#             # Get the saved signature
-#             saved_signature = SavedSignature.query.get(signature_id)
-#             if not saved_signature or saved_signature.user_id != current_user.id:
-#                 flash('Invalid signature selection', 'danger')
-#                 return redirect(url_for('sign_document', document_id=document_id))
-            
-#             # Use the saved signature file
-#             signature_path = Path(app.config['SIGNATURE_FOLDER']) / saved_signature.filename
-#         else:
-#             # Handle new signature (existing code)
-#             signature_data = request.form.get('signature')
-#             if not signature_data:
-#                 flash('Signature is required', 'danger')
-#                 return redirect(url_for('sign_document', document_id=document_id))
-            
-#             try:
-#                 # Convert data URL to image and save
-#                 image_data = signature_data.split(',')[1]
-#                 image = Image.open(BytesIO(base64.b64decode(image_data)))
-                
-#                 # Save signature image
-#                 signature_filename = f"{current_user.id}_{document_id}_{uuid.uuid4()}.png"
-#                 signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
-#                 image.save(signature_path)
-#             except Exception as e:
-#                 flash(f'Error processing signature: {str(e)}', 'danger')
-#                 return redirect(url_for('sign_document', document_id=document_id))
-        
-#         # Get coordinates from form (rest of the existing code remains the same)
-#         x = float(request.form.get('x', 50))
-#         y = float(request.form.get('y', 500))
-#         width = float(request.form.get('width', 200))
-#         height = float(request.form.get('height', 100))
-#         page = int(request.form.get('page', 0))
-        
-#         # Get preview dimensions for coordinate conversion
-#         preview_width = float(request.form.get('preview_width', 800))
-#         preview_height = float(request.form.get('preview_height', 600))
-
-#         # Validate preview dimensions to prevent division by zero
-#         if preview_width <= 0 or preview_height <= 0:
-#             flash('Invalid preview dimensions. Please try again.', 'danger')
-#             return redirect(url_for('sign_document', document_id=document_id))
-
-#         # Get selected hash algorithm
-#         algorithm = request.form.get('algorithm', 'sha256')
-        
-#         # Validate algorithm choice
-#         valid_algorithms = ['sha256', 'sha384', 'sha512', 'sha3_256', 'sha3_512']
-#         if algorithm not in valid_algorithms:
-#             algorithm = 'sha256'  # Default to SHA-256 if invalid selection
-            
-#         try:
-#             # Path to the uploaded PDF
-#             pdf_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
-            
-#             # Path for output PDF with signature image
-#             temp_pdf_path = Path(app.config['UPLOAD_FOLDER']) / f"temp_{document.filename}"
-            
-#             # Open PDF to get actual page dimensions for coordinate conversion
-#             doc = fitz.open(pdf_path)
-#             if page >= len(doc):
-#                 flash(f'Selected page {page+1} is out of range', 'danger')
-#                 return redirect(url_for('sign_document', document_id=document_id))
-            
-#             # Get the actual page dimensions
-#             pdf_page = doc[page]
-#             actual_page_width = pdf_page.rect.width
-#             actual_page_height = pdf_page.rect.height
-#             doc.close()
-
-#             # Convert from top-left origin (browser) to bottom-left origin (PDF)
-#             pdf_x = x
-#             pdf_y = y
-#             pdf_width = width
-#             pdf_height = height
-
-#             # Create the coordinate tuple for PDF
-#             pdf_coordinates = (pdf_x, pdf_y, pdf_x + pdf_width, pdf_y + pdf_height)
-
-#             print(f"Debug Backend: Browser coordinates - x={x}, y={y}, w={width}, h={height}")
-#             print(f"Debug Backend: PDF coordinates - x={pdf_x}, y={pdf_y}, w={pdf_width}, h={pdf_height}")
-#             print(f"Debug Backend: PDF coordinates tuple - {pdf_coordinates}")
-#             print(f"Debug Backend: Page {page}, Algorithm {algorithm}")
-#             print(f"Debug Backend: Actual page dimensions - {actual_page_width}x{actual_page_height}")
-#             print(f"Debug Backend: Preview dimensions - {preview_width}x{preview_height}")
-            
-#             # Add signature image to PDF
-#             add_image_signature_to_pdf(pdf_path, signature_path, temp_pdf_path, pdf_coordinates, page)
-            
-#             # Sign the PDF digitally
-#             signed_filename = f"signed_{document.filename}"
-#             signed_pdf_path = Path(app.config['UPLOAD_FOLDER']) / signed_filename
-            
-#             # Get user's keys
-#             key_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'private_key.pem'
-#             cert_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'certificate.pem'
-            
-#             # Check if keys exist
-#             if not key_path.exists() or not cert_path.exists():
-#                 flash('Digital certificate not found. Please contact support.', 'danger')
-#                 return redirect(url_for('dashboard'))
-            
-#             # Signature metadata with selected algorithm
-#             metadata = {
-#                 'field_name': 'Signature1',
-#                 'reason': 'I approve this document',
-#                 'location': 'Ho Chi Minh City, VN',
-#                 'contact_info': current_user.email,
-#                 'md_algorithm': algorithm
-#             }
-            
-#             # Sign the PDF
-#             if 'signing_password' not in session:
-#                 flash('Session expired. Please log in again.', 'danger')
-#                 return redirect(url_for('login'))
-            
-#             try:
-#                 sign_pdf_with_timestamp(
-#                     temp_pdf_path,
-#                     signed_pdf_path,
-#                     cert_path,
-#                     key_path,
-#                     session['signing_password'],
-#                     app.config['TSA_URL'],
-#                     metadata
-#                 )
-                
-#                 # Update document record with algorithm info
-#                 document.signed = True
-#                 document.signed_filename = signed_filename
-#                 document.sign_date = datetime.utcnow()
-                
-#                 # Store the algorithm used
-#                 if hasattr(document, 'hash_algorithm'):
-#                     document.hash_algorithm = algorithm
-                    
-#                 db.session.commit()
-                
-#                 # Clean up temp file
-#                 if temp_pdf_path.exists():
-#                     os.remove(temp_pdf_path)
-                
-#                 flash(f'Document signed successfully using {algorithm.upper()}', 'success')
-#                 return redirect(url_for('view_document', document_id=document.id))
-                
-#             except Exception as e:
-#                 flash(f'Error signing document: {str(e)}', 'danger')
-#                 return redirect(url_for('dashboard'))
-                
-#         except Exception as e:
-#             flash(f'Error processing signature: {str(e)}', 'danger')
-#             return redirect(url_for('sign_document', document_id=document_id))
-    
-#     # GET request - render the signing page with saved signatures
-#     saved_signatures = SavedSignature.query.filter_by(user_id=current_user.id).order_by(SavedSignature.is_default.desc(), SavedSignature.created_date.desc()).all()
-#     return render_template('sign_pdf.html', document=document, saved_signatures=saved_signatures)
 
 @app.route('/sign/<int:document_id>', methods=['GET', 'POST'])
 @login_required
@@ -585,7 +367,6 @@ def require_reauth(document_id, operation):
     """Require re-authentication for sensitive operations"""
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         flash('Document not found', 'danger')
         return redirect(url_for('dashboard'))
@@ -597,7 +378,6 @@ def require_reauth(document_id, operation):
 def view_file(document_id):
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         return "Document not found", 404
     
@@ -607,7 +387,6 @@ def view_file(document_id):
     if not os.path.exists(file_path):
         return "File not found", 404
     
-    # Serve the file without forcing download
     return send_from_directory(
         app.config['UPLOAD_FOLDER'],
         filename,
@@ -619,7 +398,6 @@ def view_file(document_id):
 def view_document(document_id):
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         flash('Document not found', 'danger')
         return redirect(url_for('dashboard'))
@@ -631,7 +409,6 @@ def view_document(document_id):
         flash(f'File not found at {file_path}. Please check if the file exists.', 'danger')
         return redirect(url_for('dashboard'))
     
-    # Add debug information
     file_info = {
         'exists': os.path.exists(file_path),
         'size': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
@@ -645,7 +422,6 @@ def view_document(document_id):
 def download_document(document_id):
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         flash('Document not found', 'danger')
         return redirect(url_for('dashboard'))
@@ -653,7 +429,6 @@ def download_document(document_id):
     filename = document.signed_filename if document.signed else document.filename
     display_name = f"signed_{document.original_filename}" if document.signed else document.original_filename
     
-    # Check if this is a download request or embedded viewing
     as_attachment = request.args.get('download', 'true').lower() == 'true'
     
     return send_from_directory(
@@ -668,7 +443,6 @@ def download_document(document_id):
 def preview_document(document_id):
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         return jsonify({'error': 'Document not found'}), 404
     
@@ -678,7 +452,6 @@ def preview_document(document_id):
     if not os.path.exists(file_path):
         return jsonify({'error': 'File not found'}), 404
     
-    # Extract basic PDF info
     try:
         doc = fitz.open(file_path)
         info = {
@@ -688,7 +461,6 @@ def preview_document(document_id):
             'pages': []
         }
         
-        # Get first page thumbnail for preview
         first_page = doc[0]
         pix = first_page.get_pixmap(matrix=fitz.Matrix(0.2, 0.2))
         img_data = pix.tobytes("png")
@@ -706,7 +478,6 @@ def get_page_image(document_id):
     page_num = request.args.get('page_num', 0, type=int)
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         return jsonify({'error': 'Document not found'}), 404
     
@@ -726,7 +497,6 @@ def get_page_image(document_id):
         img_data = pix.tobytes("png")
         img_base64 = base64.b64encode(img_data).decode('utf-8')
         
-        # Get page dimensions
         width, height = page.rect.width, page.rect.height
         
         doc.close()
@@ -760,27 +530,22 @@ def create_signature():
             flash('Signature name is required', 'danger')
             return redirect(url_for('create_signature'))
         
-        # Check if name already exists for this user
         existing = SavedSignature.query.filter_by(user_id=current_user.id, name=signature_name).first()
         if existing:
             flash('A signature with this name already exists', 'danger')
             return redirect(url_for('create_signature'))
         
         try:
-            # Convert data URL to image and save
             image_data = signature_data.split(',')[1]
             image = Image.open(BytesIO(base64.b64decode(image_data)))
             
-            # Save signature image
             signature_filename = f"signature_{current_user.id}_{uuid.uuid4()}.png"
             signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
             image.save(signature_path)
             
-            # If this is set as default, remove default from other signatures
             if is_default:
                 SavedSignature.query.filter_by(user_id=current_user.id, is_default=True).update({'is_default': False})
             
-            # Save to database
             saved_signature = SavedSignature(
                 name=signature_name,
                 filename=signature_filename,
@@ -804,18 +569,15 @@ def create_signature():
 def delete_signature(signature_id):
     signature = SavedSignature.query.get_or_404(signature_id)
     
-    # Check if signature belongs to the current user
     if signature.user_id != current_user.id:
         flash('Signature not found', 'danger')
         return redirect(url_for('manage_signatures'))
     
     try:
-        # Delete the file
         signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature.filename
         if signature_path.exists():
             os.remove(signature_path)
         
-        # Delete from database
         db.session.delete(signature)
         db.session.commit()
         
@@ -830,13 +592,11 @@ def delete_signature(signature_id):
 def set_default_signature(signature_id):
     signature = SavedSignature.query.get_or_404(signature_id)
     
-    # Check if signature belongs to the current user
     if signature.user_id != current_user.id:
         flash('Signature not found', 'danger')
         return redirect(url_for('manage_signatures'))
     
     try:
-        # Remove default from all signatures for this user
         SavedSignature.query.filter_by(user_id=current_user.id, is_default=True).update({'is_default': False})
         
         # Set this signature as default
@@ -854,7 +614,6 @@ def set_default_signature(signature_id):
 def get_signature(signature_id):
     signature = SavedSignature.query.get_or_404(signature_id)
     
-    # Check if signature belongs to the current user
     if signature.user_id != current_user.id:
         return jsonify({'error': 'Signature not found'}), 404
     
@@ -879,7 +638,6 @@ def get_signature(signature_id):
 @login_required
 def get_signature_image(filename):
     """Serve signature images securely"""
-    # Check if the signature belongs to the current user
     signature = SavedSignature.query.filter_by(filename=filename, user_id=current_user.id).first()
     if not signature:
         return "Image not found", 404
@@ -899,25 +657,21 @@ def get_signature_image(filename):
 def delete_document(document_id):
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         flash('Document not found', 'danger')
         return redirect(url_for('dashboard'))
     
     try:
-        # Delete the original file
         if document.filename:
             original_file_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
             if original_file_path.exists():
                 os.remove(original_file_path)
         
-        # Delete the signed file if it exists
         if document.signed and document.signed_filename:
             signed_file_path = Path(app.config['UPLOAD_FOLDER']) / document.signed_filename
             if signed_file_path.exists():
                 os.remove(signed_file_path)
         
-        # Delete from database
         db.session.delete(document)
         db.session.commit()
         
@@ -927,7 +681,148 @@ def delete_document(document_id):
     
     return redirect(url_for('dashboard'))
 
-# Initialize database tables
+@app.route('/certificate/validate')
+@login_required
+def validate_certificate():
+    """Validate current user's certificate"""
+    user_keys_folder = Path(app.config['KEYS_FOLDER']) / str(current_user.id)
+    cert_path = user_keys_folder / 'certificate.pem'
+    
+    if not cert_path.exists():
+        flash('No certificate found. Please contact administrator.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    validation_result = certificate_validator.validate_certificate_chain(cert_path)
+    
+    cert_validation = CertificateValidation(
+        user_id=current_user.id,
+        validation_status='valid' if validation_result['valid'] else 'invalid',
+        validation_details=validation_result,
+        certificate_serial=validation_result.get('certificate_info', {}).get('serial_number'),
+        expires_on=datetime.fromisoformat(validation_result.get('certificate_info', {}).get('not_after', '1970-01-01T00:00:00')) if validation_result.get('certificate_info', {}).get('not_after') else None
+    )
+    db.session.add(cert_validation)
+    
+    current_user.certificate_validation_status = 'valid' if validation_result['valid'] else 'invalid'
+    current_user.last_certificate_check = datetime.utcnow()
+    if cert_validation.expires_on:
+        current_user.certificate_expiry_date = cert_validation.expires_on
+    
+    db.session.commit()
+    
+    return render_template('certificate_validation.html', 
+                         validation_result=validation_result,
+                         cert_validation=cert_validation)
+
+@app.route('/certificate/rotation-check')
+@login_required
+def check_key_rotation():
+    """Check if user's keys need rotation"""
+    rotation_check = key_rotation_manager.should_rotate_keys(current_user.id)
+    
+    return render_template('key_rotation_check.html', 
+                         rotation_check=rotation_check,
+                         user=current_user)
+
+@app.route('/certificate/rotate', methods=['GET', 'POST'])
+@login_required
+def rotate_keys():
+    """Rotate user's keys and certificate"""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not current_password:
+            flash('Current password is required', 'danger')
+            return redirect(url_for('rotate_keys'))
+        
+        if new_password and new_password != confirm_password:
+            flash('New passwords do not match', 'danger')
+            return redirect(url_for('rotate_keys'))
+        
+        rotation_result = key_rotation_manager.rotate_user_keys(
+            current_user.id, 
+            current_password, 
+            new_password if new_password else current_password
+        )
+        
+        if rotation_result['success']:
+            rotation_history = KeyRotationHistory(
+                user_id=current_user.id,
+                rotation_reason='User initiated rotation',
+                initiated_by='user',
+                backup_path=str(rotation_result['backup_path'])
+            )
+            db.session.add(rotation_history)
+            
+            if new_password:
+                current_user.set_password(new_password)
+            
+            current_user.key_rotation_reminder_sent = False
+            db.session.commit()
+            
+            flash('Keys rotated successfully! Please log in again.', 'success')
+            logout_user()
+            return redirect(url_for('login'))
+        else:
+            flash(f'Key rotation failed: {rotation_result["error"]}', 'danger')
+            return redirect(url_for('rotate_keys'))
+    
+    rotation_check = key_rotation_manager.should_rotate_keys(current_user.id)
+    
+    return render_template('key_rotation.html', 
+                         rotation_check=rotation_check)
+
+@app.route('/admin/certificate-status')
+@login_required
+def admin_certificate_status():
+    """Admin view of all users' certificate status"""
+    if not current_user.is_admin:
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.all()
+    certificate_status = []
+    
+    for user in users:
+        rotation_check = key_rotation_manager.should_rotate_keys(user.id)
+        
+        certificate_status.append({
+            'user': user,
+            'rotation_check': rotation_check,
+            'last_validation': user.last_certificate_check,
+            'status': user.certificate_validation_status,
+            'expiry': user.certificate_expiry_date
+        })
+    
+    return render_template('admin_certificate_status.html', 
+                         certificate_status=certificate_status)
+
+@app.cli.command()
+def check_certificate_expiry():
+    """CLI command to check certificate expiry for all users"""
+    click.echo('Checking certificate expiry for all users...')
+    
+    users = User.query.all()
+    expiring_soon = []
+    expired = []
+    
+    for user in users:
+        rotation_check = key_rotation_manager.should_rotate_keys(user.id)
+        
+        if rotation_check['urgency'] == 'critical':
+            expired.append((user, rotation_check))
+        elif rotation_check['urgency'] in ['high', 'medium']:
+            expiring_soon.append((user, rotation_check))
+    
+    click.echo(f'Found {len(expired)} expired certificates')
+    click.echo(f'Found {len(expiring_soon)} certificates expiring soon')
+    
+    # send_expiry_notifications(expired, expiring_soon)
+    
+    return {'expired': len(expired), 'expiring_soon': len(expiring_soon)}
+
 with app.app_context():
     db.create_all()
 
