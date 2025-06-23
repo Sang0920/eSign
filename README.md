@@ -63,27 +63,86 @@ A comprehensive digital signature platform for PDF documents compliant with **PA
 
 ## 📸 Application Screenshots
 
-### **Dashboard - Document Management**
+### **Dashboard - Document Management Hub**
 ![Dashboard](asset/screenshots/dashboard.png)
-*Centralized document management with upload, status tracking, and quick actions*
 
-### **Signature Creation**
+The main dashboard provides a centralized view of all documents with:
+- **Document Upload**: Drag-and-drop PDF upload with file validation
+- **Status Indicators**: Clear visual distinction between signed and unsigned documents
+- **Action Buttons**: Quick access to sign, view, download, and delete operations
+- **Pagination**: Efficient navigation through large document collections
+- **Document Metadata**: Upload dates, file sizes, and signature status
+
+### **Signature Creation - Digital Canvas**
 ![Signature Creation](asset/screenshots/signature%20creation%20page.png)
-*Professional signature creation with HTML5 canvas and template management*
 
-### **Document Signing Interface**
+Professional signature creation interface featuring:
+- **HTML5 Canvas**: Smooth drawing experience with pressure sensitivity
+- **Signature Preview**: Real-time preview of created signatures
+- **Management Tools**: Save, name, and set default signatures
+- **Quality Controls**: Clear and redraw functionality
+- **Responsive Design**: Works on both desktop and mobile devices
+
+### **Signature Management - Template Library**
+![Signatures Page](asset/screenshots/signatures%20page.png)
+
+Comprehensive signature management system:
+- **Signature Gallery**: Visual preview of all saved signatures
+- **Default Selection**: Mark frequently used signatures as default
+- **Organization Tools**: Name, date, and usage tracking
+- **Quick Actions**: Edit, delete, and set default options
+- **Template Reuse**: Easy selection for document signing
+
+### **Document Signing Interface - Professional Workflow**
 ![Sign Page](asset/screenshots/sign%20page.png)
-*Advanced signing interface with multi-page preview and precise positioning*
 
-### **Certificate Validation**
+Advanced document signing interface with:
+- **Multi-page PDF Preview**: Navigate through document pages with tabs
+- **Signature Positioning**: Drag-and-drop signature placement with pixel precision
+- **Dual Signature Options**: Choose between saved signatures or create new ones
+- **Algorithm Selection**: Multiple hash algorithms (SHA-256, SHA-384, SHA-512, SHA3-256, SHA3-512)
+- **Real-time Coordinates**: Live tracking of signature position
+- **Visual Feedback**: Clear indication of signature placement
+
+### **Document Viewer - Signed Document Display**
+![View Page](asset/screenshots/view%20page.png)
+
+Clean document viewing experience:
+- **PDF Rendering**: High-quality document display
+- **Signature Verification**: Visual confirmation of applied digital signatures
+- **Download Options**: Access to both original and signed versions
+- **Metadata Display**: Signature details including algorithm used and timestamp
+- **Navigation Controls**: Easy return to dashboard
+
+### **Certificate Validation - Security Assessment**
 ![Certificate Validation](asset/screenshots/certificate%20validation%20page.png)
-*Comprehensive certificate health monitoring and validation reports*
 
-### **Key Rotation System**
+Comprehensive certificate health monitoring:
+- **Validation Status**: Clear pass/fail indicators with detailed explanations
+- **Certificate Details**: Serial number, expiry date, key size, and algorithm information
+- **Chain Validation**: Certificate authority chain verification
+- **Security Warnings**: Proactive alerts for certificate issues
+- **Compliance Check**: Verification against industry standards
+
+### **Key Status Monitoring - Proactive Security**
 ![Key Status](asset/screenshots/key%20status%20page.png)
-*Intelligent key rotation monitoring with risk assessment*
 
-*[View all screenshots in asset/screenshots/ directory]*
+Intelligent key rotation monitoring system:
+- **Risk Assessment**: Color-coded urgency levels (Critical, High, Medium, Low)
+- **Expiry Tracking**: Days remaining until certificate expiration
+- **Recommendations**: Actionable advice for maintaining security
+- **Certificate Information**: Key size, age, and validity period
+- **Quick Actions**: Direct access to key rotation and validation tools
+
+### **Key Rotation - Security Maintenance**
+![Key Rotation](asset/screenshots/key%20rotation%20page.png)
+
+Professional key rotation interface:
+- **Security Warnings**: Clear indication of the importance of key rotation
+- **Password Management**: Secure handling of current and new passwords
+- **Backup Strategy**: Automatic backup of existing keys before rotation
+- **Progress Tracking**: Step-by-step rotation process with verification
+- **Risk Mitigation**: Rollback capabilities in case of issues
 
 ## 🔬 Cryptographic Research Components
 
