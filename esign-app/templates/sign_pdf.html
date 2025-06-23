@@ -100,7 +100,7 @@
                     <input type="hidden" id="width" name="width" value="200">
                     <input type="hidden" id="height" name="height" value="100">
                     <input type="hidden" id="page" name="page" value="0">
-                    
+
                     <div class="mb-3">
                         <label for="algorithm" class="form-label">Signature Hash Algorithm</label>
                         <select class="form-select" id="algorithm" name="algorithm">
@@ -186,8 +186,8 @@
                     </table>
                 </div>
                 <div class="alert alert-info mt-3">
-                    <strong>Note:</strong> For most documents, SHA-256 provides adequate security. 
-                    Choose stronger algorithms for highly sensitive information or documents that 
+                    <strong>Note:</strong> For most documents, SHA-256 provides adequate security.
+                    Choose stronger algorithms for highly sensitive information or documents that
                     need to remain valid for many years.
                 </div>
             </div>
@@ -202,7 +202,7 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Add the help button next to the algorithm select label
         const algorithmLabel = document.querySelector('label[for="algorithm"]');
         const helpButton = document.createElement('button');
@@ -212,7 +212,7 @@
         helpButton.setAttribute('data-bs-toggle', 'modal');
         helpButton.setAttribute('data-bs-target', '#algorithmInfoModal');
         algorithmLabel.appendChild(helpButton);
-        
+
         // PDF viewing variables
         let currentPage = 0;
         let totalPages = 1;
@@ -222,23 +222,23 @@
 
         // Get the canvas element
         const canvas = document.getElementById('signature-pad');
-        
+
         // Adjust canvas for high DPI displays
         function resizeCanvas() {
             // Get the computed size of the canvas
             const ratio = Math.max(window.devicePixelRatio || 1, 1);
             const rect = canvas.getBoundingClientRect();
-            
+
             // Set the canvas size
             canvas.width = rect.width * ratio;
             canvas.height = rect.height * ratio;
             canvas.getContext("2d").scale(ratio, ratio);
         }
-        
+
         // Resize the canvas initially and on window resize
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
-        
+
         // Initialize SignaturePad with proper settings
         const signaturePad = new SignaturePad(canvas, {
             minWidth: 1,
@@ -251,23 +251,74 @@
         loadPdfInfo();
 
         // Signature pad buttons
-        document.getElementById('clear-signature').addEventListener('click', function() {
+        document.getElementById('clear-signature').addEventListener('click', function () {
             signaturePad.clear();
         });
 
-        document.getElementById('add-signature').addEventListener('click', function() {
+        document.getElementById('add-signature').addEventListener('click', function () {
             if (signaturePad.isEmpty()) {
                 alert('Please create a signature first');
                 return;
             }
-            
+
             // Get signature as data URL
             const dataUrl = signaturePad.toDataURL('image/png');
             document.getElementById('signature').value = dataUrl;
-            
+
+            // Get preview container dimensions for the CURRENT page
+            const currentPageContainer = document.getElementById(`pdf-container-${currentPage}`);
+            const currentPageImg = document.getElementById(`page-image-${currentPage}`);
+
+            if (currentPageContainer && currentPageImg) {
+                // Wait for image to be fully loaded
+                if (currentPageImg.complete && currentPageImg.naturalWidth > 0) {
+                    setPreviewDimensions(currentPageImg);
+                } else {
+                    currentPageImg.onload = function () {
+                        setPreviewDimensions(currentPageImg);
+                    };
+                }
+            } else {
+                alert('Unable to get preview dimensions. Please try again.');
+                return;
+            }
+
+            function setPreviewDimensions(img) {
+                // Add hidden fields for preview dimensions - use NATURAL dimensions
+                let previewWidthInput = document.getElementById('preview_width');
+                let previewHeightInput = document.getElementById('preview_height');
+
+                if (!previewWidthInput) {
+                    previewWidthInput = document.createElement('input');
+                    previewWidthInput.type = 'hidden';
+                    previewWidthInput.id = 'preview_width';
+                    previewWidthInput.name = 'preview_width';
+                    document.getElementById('sign-form').appendChild(previewWidthInput);
+                }
+
+                if (!previewHeightInput) {
+                    previewHeightInput = document.createElement('input');
+                    previewHeightInput.type = 'hidden';
+                    previewHeightInput.id = 'preview_height';
+                    previewHeightInput.name = 'preview_height';
+                    document.getElementById('sign-form').appendChild(previewHeightInput);
+                }
+
+                // Use the displayed image dimensions (clientWidth/Height)
+                previewWidthInput.value = img.clientWidth;
+                previewHeightInput.value = img.clientHeight;
+
+                console.log(`Page ${currentPage}: Preview dimensions - Width: ${img.clientWidth}, Height: ${img.clientHeight}`);
+                console.log(`Page ${currentPage}: Natural dimensions - Width: ${img.naturalWidth}, Height: ${img.naturalHeight}`);
+
+                createSignaturePreview(dataUrl);
+            }
+        });
+
+        function createSignaturePreview(dataUrl) {
             // Create or get the signature preview for the current page
             let preview = previewElements[currentPage];
-            
+
             if (!preview) {
                 // Create new preview element for this page
                 preview = document.createElement('div');
@@ -284,51 +335,239 @@
                 preview.style.cursor = 'move';
                 preview.style.zIndex = '100';
                 preview.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
-                
+
                 // Add to current page container
                 const container = document.getElementById(`pdf-container-${currentPage}`);
                 container.appendChild(preview);
-                
+
                 // Store reference to this preview
                 previewElements[currentPage] = preview;
             }
-            
+
             // Set the preview image
             preview.style.backgroundImage = `url(${dataUrl})`;
-            
+
             // Position the preview in the center initially
             const container = document.getElementById(`pdf-container-${currentPage}`);
+            const img = document.getElementById(`page-image-${currentPage}`);
+
+            // Calculate center position relative to the actual image, not container
+            const imgRect = img.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
-            
-            let left = (containerRect.width - 200) / 2;
-            let top = (containerRect.height - 100) / 2;
-            
+
+            // Calculate the offset of the image within the container
+            const imgOffsetX = imgRect.left - containerRect.left;
+            const imgOffsetY = imgRect.top - containerRect.top;
+
+            // Center the signature on the image
+            let left = imgOffsetX + (img.clientWidth - 200) / 2;
+            let top = imgOffsetY + (img.clientHeight - 100) / 2;
+
             preview.style.left = left + 'px';
             preview.style.top = top + 'px';
-            
-            // Update form values
-            document.getElementById('x').value = left;
-            document.getElementById('y').value = top;
-            document.getElementById('width').value = 200;
-            document.getElementById('height').value = 100;
-            document.getElementById('page').value = currentPage;
-            
+
+            // Calculate and store the correct coordinates
+            updateSignatureCoordinates(preview, currentPage);
+
             // Enable the finalize button
             document.getElementById('finalize-btn').disabled = false;
             signaturePlaced = true;
-            
+
             // Make the signature draggable
             makeSignatureDraggable(preview, currentPage);
-        });
+        }
 
+        // function updateSignatureCoordinates(previewElement, pageNum) {
+        //     const img = document.getElementById(`page-image-${pageNum}`);
+        //     const container = document.getElementById(`pdf-container-${pageNum}`);
+
+        //     if (!img || !pdfPageSizes[pageNum]) return;
+
+        //     // Get the position relative to the container
+        //     const left = parseInt(previewElement.style.left) || 0;
+        //     const top = parseInt(previewElement.style.top) || 0;
+
+        //     // Calculate the offset of the image within the container
+        //     const imgRect = img.getBoundingClientRect();
+        //     const containerRect = container.getBoundingClientRect();
+        //     const imgOffsetX = imgRect.left - containerRect.left;
+        //     const imgOffsetY = imgRect.top - containerRect.top;
+
+        //     // Calculate position relative to the actual image
+        //     const relativeLeft = left - imgOffsetX;
+        //     const relativeTop = top - imgOffsetY;
+
+        //     // Calculate scale factors from displayed image to actual PDF
+        //     const scaleX = pdfPageSizes[pageNum].width / img.clientWidth;
+        //     const scaleY = pdfPageSizes[pageNum].height / img.clientHeight;
+
+        //     // Convert to PDF coordinates
+        //     const pdfX = relativeLeft * scaleX;
+        //     const pdfWidth = previewElement.offsetWidth * scaleX;
+        //     const pdfHeight = previewElement.offsetHeight * scaleY;
+
+        //     // *** THIS IS THE CORRECT Y CALCULATION ***
+        //     const pdfY = pdfPageSizes[pageNum].height - ((relativeTop + previewElement.offsetHeight) * scaleY);
+
+        //     // Update form values
+        //     document.getElementById('x').value = pdfX;
+        //     document.getElementById('y').value = pdfY;
+        //     document.getElementById('width').value = pdfWidth;
+        //     document.getElementById('height').value = pdfHeight;
+        //     document.getElementById('page').value = pageNum;
+
+        //     console.log(`Debug: Container pos (${left}, ${top}), Image relative pos (${relativeLeft}, ${relativeTop})`);
+        //     console.log(`Debug: PDF coordinates (${pdfX}, ${pdfY}), Size (${pdfWidth}, ${pdfHeight})`);
+        //     console.log(`Debug: Scale factors - X: ${scaleX}, Y: ${scaleY}`);
+        //     console.log(`Debug: PDF page height: ${pdfPageSizes[pageNum].height}`);
+        // }
+
+        function updateSignatureCoordinates(previewElement, pageNum) {
+            const img = document.getElementById(`page-image-${pageNum}`);
+            const container = document.getElementById(`pdf-container-${pageNum}`);
+
+            if (!img || !pdfPageSizes[pageNum]) return;
+
+            // Get the position relative to the container
+            const left = parseInt(previewElement.style.left) || 0;
+            const top = parseInt(previewElement.style.top) || 0;
+
+            // Calculate the offset of the image within the container
+            const imgRect = img.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const imgOffsetX = imgRect.left - containerRect.left;
+            const imgOffsetY = imgRect.top - containerRect.top;
+
+            // Calculate position relative to the actual image
+            const relativeLeft = left - imgOffsetX;
+            const relativeTop = top - imgOffsetY;
+
+            // Calculate scale factors from displayed image to actual PDF
+            const scaleX = pdfPageSizes[pageNum].width / img.clientWidth;
+            const scaleY = pdfPageSizes[pageNum].height / img.clientHeight;
+
+            // Convert to PDF coordinates
+            const pdfX = relativeLeft * scaleX;
+            const pdfWidth = previewElement.offsetWidth * scaleX;
+            const pdfHeight = previewElement.offsetHeight * scaleY;
+
+            // CORRECTED Y CALCULATION - Use direct mapping instead of flipping
+            // This makes top of browser = top of PDF, bottom of browser = bottom of PDF
+            const pdfY = relativeTop * scaleY;
+
+            // Update form values
+            document.getElementById('x').value = pdfX;
+            document.getElementById('y').value = pdfY;
+            document.getElementById('width').value = pdfWidth;
+            document.getElementById('height').value = pdfHeight;
+            document.getElementById('page').value = pageNum;
+
+            console.log(`Debug: Container pos (${left}, ${top}), Image relative pos (${relativeLeft}, ${relativeTop})`);
+            console.log(`Debug: PDF coordinates (${pdfX}, ${pdfY}), Size (${pdfWidth}, ${pdfHeight})`);
+            console.log(`Debug: Scale factors - X: ${scaleX}, Y: ${scaleY}`);
+            console.log(`Debug: PDF page height: ${pdfPageSizes[pageNum].height}`);
+        }
+
+
+        function makeSignatureDraggable(previewElement, pageNum) {
+            let isDragging = false;
+            let offsetX, offsetY;
+
+            // Mouse down event for desktop
+            previewElement.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                isDragging = true;
+
+                // Get the offset within the element where the mouse was clicked
+                const rect = previewElement.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+
+                previewElement.style.cursor = 'grabbing';
+            });
+
+            // Mouse move event for desktop
+            document.addEventListener('mousemove', function (e) {
+                if (!isDragging) return;
+
+                const container = document.getElementById(`pdf-container-${pageNum}`);
+                const containerRect = container.getBoundingClientRect();
+
+                // Calculate the new position
+                let left = e.clientX - containerRect.left - offsetX;
+                let top = e.clientY - containerRect.top - offsetY;
+
+                // Constrain to container boundaries
+                left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
+                top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
+
+                // Update element position
+                previewElement.style.left = left + 'px';
+                previewElement.style.top = top + 'px';
+
+                // Update coordinates when dragging on current page - USE CONSISTENT CALCULATION
+                if (pageNum === currentPage) {
+                    updateSignatureCoordinates(previewElement, pageNum);
+                }
+            });
+
+            // Mouse up event for desktop
+            document.addEventListener('mouseup', function () {
+                if (isDragging) {
+                    isDragging = false;
+                    previewElement.style.cursor = 'move';
+                }
+            });
+
+            // Touch events for mobile devices
+            previewElement.addEventListener('touchstart', function (e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+
+                isDragging = true;
+                const rect = previewElement.getBoundingClientRect();
+                offsetX = touch.clientX - rect.left;
+                offsetY = touch.clientY - rect.top;
+            });
+
+            document.addEventListener('touchmove', function (e) {
+                if (!isDragging) return;
+                e.preventDefault();
+
+                const touch = e.touches[0];
+                const container = document.getElementById(`pdf-container-${pageNum}`);
+                const containerRect = container.getBoundingClientRect();
+
+                let left = touch.clientX - containerRect.left - offsetX;
+                let top = touch.clientY - containerRect.top - offsetY;
+
+                // Constrain to container boundaries
+                left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
+                top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
+
+                previewElement.style.left = left + 'px';
+                previewElement.style.top = top + 'px';
+
+                // Use consistent coordinate calculation for touch as well
+                if (pageNum === currentPage) {
+                    updateSignatureCoordinates(previewElement, pageNum);
+                }
+            });
+
+            document.addEventListener('touchend', function () {
+                if (isDragging) {
+                    isDragging = false;
+                }
+            });
+        }
         // Navigation buttons
-        document.getElementById('prev-page').addEventListener('click', function() {
+        document.getElementById('prev-page').addEventListener('click', function () {
             if (currentPage > 0) {
                 navigateToPage(currentPage - 1);
             }
         });
 
-        document.getElementById('next-page').addEventListener('click', function() {
+        document.getElementById('next-page').addEventListener('click', function () {
             if (currentPage < totalPages - 1) {
                 navigateToPage(currentPage + 1);
             }
@@ -340,20 +579,20 @@
                 .then(response => response.json())
                 .then(data => {
                     totalPages = data.pageCount;
-                    
+
                     // Create page tabs
                     const tabsContainer = document.getElementById('page-tabs');
                     const tabContentContainer = document.getElementById('page-tab-content');
-                    
+
                     tabsContainer.innerHTML = '';
                     tabContentContainer.innerHTML = '';
-                    
+
                     for (let i = 0; i < totalPages; i++) {
                         // Create tab
                         const li = document.createElement('li');
                         li.className = 'nav-item';
                         li.role = 'presentation';
-                        
+
                         const button = document.createElement('button');
                         button.className = i === 0 ? 'nav-link active' : 'nav-link';
                         button.id = `page-${i}-tab`;
@@ -362,37 +601,37 @@
                         button.setAttribute('type', 'button');
                         button.setAttribute('role', 'tab');
                         button.textContent = `Page ${i + 1}`;
-                        
+
                         // Add click event listener
-                        button.addEventListener('click', function() {
+                        button.addEventListener('click', function () {
                             navigateToPage(i);
                         });
-                        
+
                         li.appendChild(button);
                         tabsContainer.appendChild(li);
-                        
+
                         // Create tab content
                         const div = document.createElement('div');
                         div.className = i === 0 ? 'tab-pane fade show active' : 'tab-pane fade';
                         div.id = `page-${i}`;
                         div.role = 'tabpanel';
-                        
+
                         const container = document.createElement('div');
                         container.id = `pdf-container-${i}`;
                         container.className = 'pdf-page-container';
-                        
+
                         const img = document.createElement('img');
                         img.id = `page-image-${i}`;
                         img.alt = `PDF Page ${i + 1}`;
                         container.appendChild(img);
-                        
+
                         div.appendChild(container);
                         tabContentContainer.appendChild(div);
                     }
-                    
+
                     // Update page indicator
                     updatePageIndicator();
-                    
+
                     // Load the first page
                     loadPage(0);
                 })
@@ -407,12 +646,12 @@
             // Check if already loaded
             const img = document.getElementById(`page-image-${pageNum}`);
             if (img.src) return;
-            
+
             fetch(`{{ url_for('get_page_image', document_id=document.id) }}?page_num=${pageNum}`)
                 .then(response => response.json())
                 .then(data => {
                     img.src = data.image;
-                    
+
                     // Store page dimensions
                     pdfPageSizes[pageNum] = {
                         width: data.width,
@@ -428,22 +667,22 @@
         function navigateToPage(pageNum) {
             // Update current page
             currentPage = pageNum;
-            
+
             // Update page indicator
             updatePageIndicator();
-            
+
             // Enable/disable navigation buttons
             document.getElementById('prev-page').disabled = currentPage === 0;
             document.getElementById('next-page').disabled = currentPage === totalPages - 1;
-            
+
             // Load the page if not already loaded
             loadPage(pageNum);
-            
+
             // Update the form with current page
             if (signaturePlaced && previewElements[currentPage]) {
                 document.getElementById('page').value = currentPage;
             }
-            
+
             // Activate the correct tab
             const tabEl = document.getElementById(`page-${pageNum}-tab`);
             const tab = new bootstrap.Tab(tabEl);
@@ -455,108 +694,125 @@
             document.getElementById('page-indicator').textContent = `Page ${currentPage + 1} of ${totalPages}`;
         }
 
-        // Make signature preview draggable
-        function makeSignatureDraggable(previewElement, pageNum) {
-            let isDragging = false;
-            let offsetX, offsetY;
-            
-            // Get the initial position
-            let initialLeft = parseInt(previewElement.style.left) || 0;
-            let initialTop = parseInt(previewElement.style.top) || 0;
-            
-            // Update form with initial position
-            if (pageNum === currentPage) {
-                document.getElementById('x').value = initialLeft;
-                document.getElementById('y').value = initialTop;
-                document.getElementById('width').value = previewElement.offsetWidth;
-                document.getElementById('height').value = previewElement.offsetHeight;
-                document.getElementById('page').value = pageNum;
-            }
-            
-            // Mouse down event for desktop
-            previewElement.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                isDragging = true;
-                
-                // Get the offset within the element where the mouse was clicked
-                const rect = previewElement.getBoundingClientRect();
-                offsetX = e.clientX - rect.left;
-                offsetY = e.clientY - rect.top;
-                
-                previewElement.style.cursor = 'grabbing';
-            });
-            
-            // Mouse move event for desktop
-            document.addEventListener('mousemove', function(e) {
-                if (!isDragging) return;
-                
-                const container = document.getElementById(`pdf-container-${pageNum}`);
-                const containerRect = container.getBoundingClientRect();
-                
-                // Calculate the new position
-                let left = e.clientX - containerRect.left - offsetX;
-                let top = e.clientY - containerRect.top - offsetY;
-                
-                // Constrain to container boundaries
-                left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
-                top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
-                
-                // Update element position
-                previewElement.style.left = left + 'px';
-                previewElement.style.top = top + 'px';
-                
-                // Update form values if this is the current page
-                if (pageNum === currentPage) {
-                    document.getElementById('x').value = left;
-                    document.getElementById('y').value = top;
-                }
-            });
-            
-            // Mouse up event for desktop
-            document.addEventListener('mouseup', function() {
-                if (isDragging) {
-                    isDragging = false;
-                    previewElement.style.cursor = 'move';
-                }
-            });
-            
-            // Touch events for mobile devices
-            previewElement.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                const touch = e.touches[0];
-                
-                isDragging = true;
-                const rect = previewElement.getBoundingClientRect();
-                offsetX = touch.clientX - rect.left;
-                offsetY = touch.clientY - rect.top;
-            });
-            
-            document.addEventListener('touchmove', function(e) {
-                if (!isDragging) return;
-                
-                const touch = e.touches[0];
-                const container = document.getElementById(`pdf-container-${pageNum}`);
-                const containerRect = container.getBoundingClientRect();
-                
-                let left = touch.clientX - containerRect.left - offsetX;
-                let top = touch.clientY - containerRect.top - offsetY;
-                
-                left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
-                top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
-                
-                previewElement.style.left = left + 'px';
-                previewElement.style.top = top + 'px';
-                
-                if (pageNum === currentPage) {
-                    document.getElementById('x').value = left;
-                    document.getElementById('y').value = top;
-                }
-            });
-            
-            document.addEventListener('touchend', function() {
-                isDragging = false;
-            });
-        }
+        // // Make signature preview draggable
+        // function makeSignatureDraggable(previewElement, pageNum) {
+        //     let isDragging = false;
+        //     let offsetX, offsetY;
+
+        //     // Get the initial position
+        //     let initialLeft = parseInt(previewElement.style.left) || 0;
+        //     let initialTop = parseInt(previewElement.style.top) || 0;
+
+        //     // Update form with initial position
+        //     if (pageNum === currentPage) {
+        //         document.getElementById('x').value = initialLeft;
+        //         document.getElementById('y').value = initialTop;
+        //         document.getElementById('width').value = previewElement.offsetWidth;
+        //         document.getElementById('height').value = previewElement.offsetHeight;
+        //         document.getElementById('page').value = pageNum;
+        //     }
+
+        //     // Mouse down event for desktop
+        //     previewElement.addEventListener('mousedown', function (e) {
+        //         e.preventDefault();
+        //         isDragging = true;
+
+        //         // Get the offset within the element where the mouse was clicked
+        //         const rect = previewElement.getBoundingClientRect();
+        //         offsetX = e.clientX - rect.left;
+        //         offsetY = e.clientY - rect.top;
+
+        //         previewElement.style.cursor = 'grabbing';
+        //     });
+
+        //     // Mouse move event for desktop
+        //     document.addEventListener('mousemove', function (e) {
+        //         if (!isDragging) return;
+
+        //         const container = document.getElementById(`pdf-container-${pageNum}`);
+        //         const containerRect = container.getBoundingClientRect();
+
+        //         // Calculate the new position
+        //         let left = e.clientX - containerRect.left - offsetX;
+        //         let top = e.clientY - containerRect.top - offsetY;
+
+        //         // Constrain to container boundaries
+        //         left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
+        //         top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
+
+        //         // Update element position
+        //         previewElement.style.left = left + 'px';
+        //         previewElement.style.top = top + 'px';
+
+        //         // Update form values if this is the current page
+        //         if (pageNum === currentPage) {
+        //             // Get the PDF page dimensions
+        //             const img = document.getElementById(`page-image-${pageNum}`);
+        //             const containerRect = container.getBoundingClientRect();
+
+        //             // Calculate scale factors
+        //             const scaleX = pdfPageSizes[pageNum].width / img.naturalWidth;
+        //             const scaleY = pdfPageSizes[pageNum].height / img.naturalHeight;
+
+        //             // Transform coordinates from browser to PDF coordinate system
+        //             const pdfX = left * scaleX;
+        //             const pdfY = pdfPageSizes[pageNum].height - ((top + previewElement.offsetHeight) * scaleY);
+        //             const pdfWidth = previewElement.offsetWidth * scaleX;
+        //             const pdfHeight = previewElement.offsetHeight * scaleY;
+
+        //             document.getElementById('x').value = pdfX;
+        //             document.getElementById('y').value = pdfY;
+        //             document.getElementById('width').value = pdfWidth;
+        //             document.getElementById('height').value = pdfHeight;
+        //         }
+        //     });
+
+        //     // Mouse up event for desktop
+        //     document.addEventListener('mouseup', function () {
+        //         if (isDragging) {
+        //             isDragging = false;
+        //             previewElement.style.cursor = 'move';
+        //         }
+        //     });
+
+        //     // Touch events for mobile devices
+        //     previewElement.addEventListener('touchstart', function (e) {
+        //         e.preventDefault();
+        //         const touch = e.touches[0];
+
+        //         isDragging = true;
+        //         const rect = previewElement.getBoundingClientRect();
+        //         offsetX = touch.clientX - rect.left;
+        //         offsetY = touch.clientY - rect.top;
+        //     });
+
+        //     document.addEventListener('touchmove', function (e) {
+        //         if (!isDragging) return;
+
+        //         const touch = e.touches[0];
+        //         const container = document.getElementById(`pdf-container-${pageNum}`);
+        //         const containerRect = container.getBoundingClientRect();
+
+        //         let left = touch.clientX - containerRect.left - offsetX;
+        //         let top = touch.clientY - containerRect.top - offsetY;
+
+        //         left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
+        //         top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
+
+        //         previewElement.style.left = left + 'px';
+        //         previewElement.style.top = top + 'px';
+
+        //         if (pageNum === currentPage) {
+        //             document.getElementById('x').value = left;
+        //             document.getElementById('y').value = top;
+        //         }
+        //     });
+
+        //     document.addEventListener('touchend', function () {
+        //         isDragging = false;
+        //     });
+        // };
+
     });
 </script>
 {% endblock %}

@@ -21,4 +21,4 @@ keyUsage               = critical, digitalSignature, nonRepudiation # CRITICAL: 
 # subjectAltName       = @alt_names # Optional
 
 # [ alt_names ] # Optional
-# DNS.1 = your.domain.com
+# DNS.1 = my.domain.com

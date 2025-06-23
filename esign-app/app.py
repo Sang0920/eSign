@@ -168,124 +168,6 @@ def upload_file():
     flash('Invalid file type. Only PDF files are allowed.', 'danger')
     return redirect(url_for('dashboard'))
 
-# @app.route('/sign/<int:document_id>', methods=['GET', 'POST'])
-# @login_required
-# def sign_document(document_id):
-#     document = Document.query.get_or_404(document_id)
-    
-#     # Check if document belongs to the current user
-#     if document.user_id != current_user.id:
-#         flash('Document not found', 'danger')
-#         return redirect(url_for('dashboard'))
-    
-#     if request.method == 'POST':
-#         # Get signature image data from request
-#         signature_data = request.form.get('signature')
-#         if not signature_data:
-#             flash('Signature is required', 'danger')
-#             return redirect(url_for('sign_document', document_id=document_id))
-        
-#         # Get coordinates from form
-#         x = float(request.form.get('x', 50))
-#         y = float(request.form.get('y', 500))
-#         width = float(request.form.get('width', 200))
-#         height = float(request.form.get('height', 100))
-#         page = int(request.form.get('page', 0))
-        
-#         try:
-#             # Convert data URL to image and save
-#             image_data = signature_data.split(',')[1]
-#             image = Image.open(BytesIO(base64.b64decode(image_data)))
-            
-#             # Save signature image
-#             signature_filename = f"{current_user.id}_{document_id}_{uuid.uuid4()}.png"
-#             signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
-#             image.save(signature_path)
-            
-#             # Path to the uploaded PDF
-#             pdf_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
-            
-#             # Path for output PDF with signature image
-#             temp_pdf_path = Path(app.config['UPLOAD_FOLDER']) / f"temp_{document.filename}"
-            
-#             # Open the PDF to get actual page dimensions
-#             doc = fitz.open(pdf_path)
-#             if page >= len(doc):
-#                 flash(f'Selected page {page+1} is out of range', 'danger')
-#                 return redirect(url_for('sign_document', document_id=document_id))
-            
-#             # Get the page
-#             pdf_page = doc[page]
-#             page_width, page_height = pdf_page.rect.width, pdf_page.rect.height
-#             doc.close()
-            
-#             # Calculate coordinates for the PDF based on browser coordinates
-#             browser_coordinates = (x, y, x + width, y + height)
-            
-#             # Add signature image to PDF
-#             add_image_signature_to_pdf(pdf_path, signature_path, temp_pdf_path, browser_coordinates, page)
-            
-#             # Sign the PDF digitally
-#             signed_filename = f"signed_{document.filename}"
-#             signed_pdf_path = Path(app.config['UPLOAD_FOLDER']) / signed_filename
-            
-#             # Get user's keys
-#             key_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'private_key.pem'
-#             cert_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'certificate.pem'
-            
-#             # Check if keys exist
-#             if not key_path.exists() or not cert_path.exists():
-#                 flash('Digital certificate not found. Please contact support.', 'danger')
-#                 return redirect(url_for('dashboard'))
-            
-#             # Signature metadata
-#             metadata = {
-#                 'field_name': 'Signature1',
-#                 'reason': 'I approve this document',
-#                 'location': 'Ho Chi Minh City, VN',
-#                 'contact_info': current_user.email
-#             }
-            
-#             # Sign the PDF
-#             if 'signing_password' not in session:
-#                 flash('Session expired. Please log in again.', 'danger')
-#                 return redirect(url_for('login'))
-            
-#             try:
-#                 sign_pdf_with_timestamp(
-#                     temp_pdf_path,
-#                     signed_pdf_path,
-#                     cert_path,
-#                     key_path,
-#                     session['signing_password'],
-#                     app.config['TSA_URL'],
-#                     metadata
-#                 )
-                
-#                 # Update document record
-#                 document.signed = True
-#                 document.signed_filename = signed_filename
-#                 document.sign_date = datetime.utcnow()
-#                 db.session.commit()
-                
-#                 # Clean up temp file
-#                 if temp_pdf_path.exists():
-#                     os.remove(temp_pdf_path)
-                
-#                 flash('Document signed successfully', 'success')
-#                 return redirect(url_for('view_document', document_id=document.id))
-                
-#             except Exception as e:
-#                 flash(f'Error signing document: {str(e)}', 'danger')
-#                 return redirect(url_for('dashboard'))
-                
-#         except Exception as e:
-#             flash(f'Error processing signature: {str(e)}', 'danger')
-#             return redirect(url_for('sign_document', document_id=document_id))
-    
-#     # GET request - render the signing page
-#     return render_template('sign_pdf.html', document=document)
-
 @app.route('/sign/<int:document_id>', methods=['GET', 'POST'])
 @login_required
 def sign_document(document_id):
@@ -310,6 +192,15 @@ def sign_document(document_id):
         height = float(request.form.get('height', 100))
         page = int(request.form.get('page', 0))
         
+        # Get preview dimensions for coordinate conversion
+        preview_width = float(request.form.get('preview_width', 800))
+        preview_height = float(request.form.get('preview_height', 600))
+
+        # Validate preview dimensions to prevent division by zero
+        if preview_width <= 0 or preview_height <= 0:
+            flash('Invalid preview dimensions. Please try again.', 'danger')
+            return redirect(url_for('sign_document', document_id=document_id))
+
         # Get selected hash algorithm
         algorithm = request.form.get('algorithm', 'sha256')
         
@@ -334,9 +225,37 @@ def sign_document(document_id):
             # Path for output PDF with signature image
             temp_pdf_path = Path(app.config['UPLOAD_FOLDER']) / f"temp_{document.filename}"
             
+            # Open PDF to get actual page dimensions for coordinate conversion
+            doc = fitz.open(pdf_path)
+            if page >= len(doc):
+                flash(f'Selected page {page+1} is out of range', 'danger')
+                return redirect(url_for('sign_document', document_id=document_id))
+            
+            # Get the actual page dimensions
+            pdf_page = doc[page]
+            actual_page_width = pdf_page.rect.width
+            actual_page_height = pdf_page.rect.height
+            doc.close()
+
+            # Convert from top-left origin (browser) to bottom-left origin (PDF)
+            pdf_x = x
+            # pdf_y = actual_page_height - y - height  # Flip Y coordinate here in backend
+            pdf_y = y
+            pdf_width = width
+            pdf_height = height
+
+            # Create the coordinate tuple for PDF
+            pdf_coordinates = (pdf_x, pdf_y, pdf_x + pdf_width, pdf_y + pdf_height)
+
+            print(f"Debug Backend: Browser coordinates - x={x}, y={y}, w={width}, h={height}")
+            print(f"Debug Backend: PDF coordinates - x={pdf_x}, y={pdf_y}, w={pdf_width}, h={pdf_height}")
+            print(f"Debug Backend: PDF coordinates tuple - {pdf_coordinates}")
+            print(f"Debug Backend: Page {page}, Algorithm {algorithm}")
+            print(f"Debug Backend: Actual page dimensions - {actual_page_width}x{actual_page_height}")
+            print(f"Debug Backend: Preview dimensions - {preview_width}x{preview_height}")
+            
             # Add signature image to PDF
-            browser_coordinates = (x, y, x + width, y + height)
-            add_image_signature_to_pdf(pdf_path, signature_path, temp_pdf_path, browser_coordinates, page)
+            add_image_signature_to_pdf(pdf_path, signature_path, temp_pdf_path, pdf_coordinates, page)
             
             # Sign the PDF digitally
             signed_filename = f"signed_{document.filename}"
