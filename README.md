@@ -35,42 +35,7 @@ A comprehensive digital signature platform for PDF documents compliant with **PA
 - **Secure Storage**: Encrypted file storage with user isolation
 - **Search & Filter**: Advanced document filtering and pagination
 
-## 🌐 Live Demo & Testing
-
-### **Production Deployment**
-**Try it now**: [https://esign-odwx.onrender.com/](https://esign-odwx.onrender.com/)
-
-### **Getting Started**
-1. **Register**: Create a new account with email and secure password
-2. **Upload**: Add a PDF document (up to 16MB)
-3. **Sign**: Create a digital signature and apply it to your document
-4. **Verify**: Download the signed PDF and verify at [NEAC](https://neac.gov.vn/)
-
-### **Performance Notes**
-- **First Load**: May take 30-60 seconds due to Render's cold start
-- **File Upload**: Supports PDFs up to 16MB
-- **Concurrent Users**: Fully supports multiple simultaneous users
-
-## 🏗️ Technical Architecture
-
-### **Backend Technologies**
-- **Framework**: Flask (Python 3.12+) with production-ready configuration
-- **Database**: SQLite with SQLAlchemy ORM and migration support
-- **PDF Processing**: PyMuPDF (fitz) for document manipulation
-- **Cryptography**: Python `cryptography` library
-- **Digital Signatures**: pyHanko for PAdES-compliant PDF signing
-- **Timestamping**: RFC 3161 timestamp server integration
-
-### **Frontend Technologies**
-- **UI Framework**: Bootstrap 5.3.0 with responsive design
-- **JavaScript**: Vanilla JS with modern ES6+ features
-- **Canvas API**: HTML5 Canvas for signature creation
-- **Interactive Elements**: Drag-and-drop, modal dialogs, tabbed interfaces
-
 ## 📦 Installation & Setup
-
-### **🌐 Quick Start - Use Live Demo**
-**Recommended**: Try the live application at [https://esign-odwx.onrender.com/](https://esign-odwx.onrender.com/)
 
 ### **Local Development Setup**
 
@@ -157,20 +122,6 @@ eSign/
 └── requirements.txt             # Dependencies
 ```
 
-## 🛡️ Security & Compliance
-
-### **Security Features**
-- **Password Security**: PBKDF2 hashing with salt
-- **Session Security**: Encrypted tokens with expiration
-- **File Security**: UUID-based naming, secure storage
-- **Certificate Security**: X.509 chain validation
-
-### **Standards Compliance**
-- **PAdES**: PDF Advanced Electronic Signatures
-- **NEAC**: Vietnam National Electronic Authentication Center
-- **RFC 3161**: Timestamp server integration
-- **X.509**: Standard certificate format
-
 ## 🔮 Future Enhancements
 
 - [ ] Multi-language support (Vietnamese, English)
@@ -183,7 +134,6 @@ eSign/
 ## 👨‍💻 Developer & Links
 
 **Đỗ Thế Sang**
-- **Live Demo**: [https://esign-odwx.onrender.com/](https://esign-odwx.onrender.com/)
 - **GitHub**: [@sang0920](https://github.com/sang0920)
 - **Source Code**: [https://github.com/Sang0920/eSign](https://github.com/Sang0920/eSign)
 - **Email**: dothesang20@gmail.com
@@ -194,31 +144,7 @@ eSign/
 - **Academic Year**: 2024-2025
 - **Research Focus**: Practical implementation of digital signature standards
 
-## 🔍 Signature Verification
-
-**Important**: To verify documents signed with this application:
-
-1. **Live Demo**: Test signing at [https://esign-odwx.onrender.com/](https://esign-odwx.onrender.com/)
-2. **NEAC Verification**: Upload signed documents to [https://neac.gov.vn/](https://neac.gov.vn/)
-3. **PDF Reader**: Open in Adobe Reader, Chrome, or Firefox
-4. **Built-in Validation**: Use the application's certificate validation feature
-
-### **Verification Steps**
-1. Download the signed PDF document
-2. Visit [https://neac.gov.vn/](https://neac.gov.vn/) for official verification
-3. Upload the document to verify authenticity
-4. Review validation results and certificate details
-
-## 🙏 Acknowledgments
-
-- **HUIT Lab** for research environment and resources
-- **Vietnam NEAC** for validation standards and guidelines
-- **Python Cryptography Community** for excellent libraries
-- **Flask Community** for the robust web framework
-- **Open Source Community** for inspiration and standards
-
 ---
 
 *This project demonstrates practical application of cryptographic algorithms in real-world software development, combining academic research with industry-standard security practices and Vietnamese digital signature compliance.*
 
-**🌐 Try it live**: [https://esign-odwx.onrender.com/](https://esign-odwx.onrender.com/)
