@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Re-authentication Required{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-shield-lock me-2"></i>
+                    Security Verification Required
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    For your security, please confirm your password to continue with document signing.
+                </div>
+                
+                <p><strong>Document:</strong> {{ document.original_filename }}</p>
+                <p><strong>Operation:</strong> Digital Signature</p>
+                
+                <form id="reauthForm">
+                    <input type="hidden" id="operation" value="{{ operation }}">
+                    <input type="hidden" id="document_id" value="{{ document.id }}">
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required autofocus>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-1"></i>
+                            Verify and Continue
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle me-1"></i>
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('reauthForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    formData.append('password', document.getElementById('password').value);
+    formData.append('operation', document.getElementById('operation').value);
+    formData.append('document_id', document.getElementById('document_id').value);
+    
+    fetch('{{ url_for("confirm_password") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Store auth token and redirect
+            sessionStorage.setItem('auth_token', data.auth_token);
+            window.location.href = data.redirect_url;
+        } else {
+            alert('Invalid password. Please try again.');
+            document.getElementById('password').value = '';
+            document.getElementById('password').focus();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred. Please try again.');
+    });
+});
+</script>
+{% endblock %}

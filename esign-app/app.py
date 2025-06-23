@@ -16,6 +16,7 @@ from config import Config
 from models import db, User, Document, SavedSignature
 from utils.crypto import generate_key_pair
 from utils.pdf import add_image_signature_to_pdf, sign_pdf_with_timestamp
+from utils.security import password_manager
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -87,6 +88,36 @@ def register():
     
     return render_template('register.html')
 
+# @app.route('/login', methods=['GET', 'POST'])
+# def login():
+#     if current_user.is_authenticated:
+#         return redirect(url_for('dashboard'))
+    
+#     if request.method == 'POST':
+#         username = request.form.get('username')
+#         password = request.form.get('password')
+#         remember_me = 'remember_me' in request.form
+        
+#         user = User.query.filter_by(username=username).first()
+        
+#         if user is None or not user.check_password(password):
+#             flash('Invalid username or password', 'danger')
+#             return render_template('login.html')
+        
+#         login_user(user, remember=remember_me)
+#         next_page = request.args.get('next')
+#         if not next_page or not next_page.startswith('/'):
+#             next_page = url_for('dashboard')
+        
+#         # Store the password in session for signing PDFs (in real production, use a more secure method)
+#         session['signing_password'] = password
+            
+#         return redirect(next_page)
+    
+#     return render_template('login.html')
+
+from utils.security import password_manager
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -108,17 +139,42 @@ def login():
         if not next_page or not next_page.startswith('/'):
             next_page = url_for('dashboard')
         
-        # Store the password in session for signing PDFs (in real production, use a more secure method)
-        session['signing_password'] = password
+        auth_token = password_manager.store_password_temporarily(password, user.id)
+        session['auth_token'] = auth_token
             
         return redirect(next_page)
     
     return render_template('login.html')
 
+@app.route('/confirm_password', methods=['POST'])
+@login_required
+def confirm_password():
+    """Endpoint for re-authentication before critical operations"""
+    password = request.form.get('password')
+    operation = request.form.get('operation')
+    document_id = request.form.get('document_id')
+    
+    if not current_user.check_password(password):
+        return jsonify({'success': False, 'error': 'Invalid password'})
+    
+    auth_token = password_manager.store_password_temporarily(password, current_user.id)
+    
+    return jsonify({
+        'success': True, 
+        'auth_token': auth_token,
+        'redirect_url': url_for('sign_document', document_id=document_id) if operation == 'sign' else None
+    })
+
+# @app.route('/logout')
+# def logout():
+#     if 'signing_password' in session:
+#         session.pop('signing_password')
+#     logout_user()
+#     return redirect(url_for('index'))
+
 @app.route('/logout')
 def logout():
-    if 'signing_password' in session:
-        session.pop('signing_password')
+    password_manager.clear_password_session()
     logout_user()
     return redirect(url_for('index'))
 
@@ -189,18 +245,209 @@ def upload_file():
     flash('Invalid file type. Only PDF files are allowed.', 'danger')
     return redirect(url_for('dashboard'))
 
+# @app.route('/sign/<int:document_id>', methods=['GET', 'POST'])
+# @login_required
+# def sign_document(document_id):
+#     document = Document.query.get_or_404(document_id)
+    
+#     # Check if document belongs to the current user
+#     if document.user_id != current_user.id:
+#         flash('Document not found', 'danger')
+#         return redirect(url_for('dashboard'))
+    
+#     if request.method == 'POST':
+#         # Check if using saved signature or new signature
+#         signature_source = request.form.get('signature_source', 'new')
+        
+#         if signature_source == 'saved':
+#             signature_id = request.form.get('saved_signature_id')
+#             if not signature_id:
+#                 flash('Please select a saved signature', 'danger')
+#                 return redirect(url_for('sign_document', document_id=document_id))
+            
+#             # Get the saved signature
+#             saved_signature = SavedSignature.query.get(signature_id)
+#             if not saved_signature or saved_signature.user_id != current_user.id:
+#                 flash('Invalid signature selection', 'danger')
+#                 return redirect(url_for('sign_document', document_id=document_id))
+            
+#             # Use the saved signature file
+#             signature_path = Path(app.config['SIGNATURE_FOLDER']) / saved_signature.filename
+#         else:
+#             # Handle new signature (existing code)
+#             signature_data = request.form.get('signature')
+#             if not signature_data:
+#                 flash('Signature is required', 'danger')
+#                 return redirect(url_for('sign_document', document_id=document_id))
+            
+#             try:
+#                 # Convert data URL to image and save
+#                 image_data = signature_data.split(',')[1]
+#                 image = Image.open(BytesIO(base64.b64decode(image_data)))
+                
+#                 # Save signature image
+#                 signature_filename = f"{current_user.id}_{document_id}_{uuid.uuid4()}.png"
+#                 signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
+#                 image.save(signature_path)
+#             except Exception as e:
+#                 flash(f'Error processing signature: {str(e)}', 'danger')
+#                 return redirect(url_for('sign_document', document_id=document_id))
+        
+#         # Get coordinates from form (rest of the existing code remains the same)
+#         x = float(request.form.get('x', 50))
+#         y = float(request.form.get('y', 500))
+#         width = float(request.form.get('width', 200))
+#         height = float(request.form.get('height', 100))
+#         page = int(request.form.get('page', 0))
+        
+#         # Get preview dimensions for coordinate conversion
+#         preview_width = float(request.form.get('preview_width', 800))
+#         preview_height = float(request.form.get('preview_height', 600))
+
+#         # Validate preview dimensions to prevent division by zero
+#         if preview_width <= 0 or preview_height <= 0:
+#             flash('Invalid preview dimensions. Please try again.', 'danger')
+#             return redirect(url_for('sign_document', document_id=document_id))
+
+#         # Get selected hash algorithm
+#         algorithm = request.form.get('algorithm', 'sha256')
+        
+#         # Validate algorithm choice
+#         valid_algorithms = ['sha256', 'sha384', 'sha512', 'sha3_256', 'sha3_512']
+#         if algorithm not in valid_algorithms:
+#             algorithm = 'sha256'  # Default to SHA-256 if invalid selection
+            
+#         try:
+#             # Path to the uploaded PDF
+#             pdf_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
+            
+#             # Path for output PDF with signature image
+#             temp_pdf_path = Path(app.config['UPLOAD_FOLDER']) / f"temp_{document.filename}"
+            
+#             # Open PDF to get actual page dimensions for coordinate conversion
+#             doc = fitz.open(pdf_path)
+#             if page >= len(doc):
+#                 flash(f'Selected page {page+1} is out of range', 'danger')
+#                 return redirect(url_for('sign_document', document_id=document_id))
+            
+#             # Get the actual page dimensions
+#             pdf_page = doc[page]
+#             actual_page_width = pdf_page.rect.width
+#             actual_page_height = pdf_page.rect.height
+#             doc.close()
+
+#             # Convert from top-left origin (browser) to bottom-left origin (PDF)
+#             pdf_x = x
+#             pdf_y = y
+#             pdf_width = width
+#             pdf_height = height
+
+#             # Create the coordinate tuple for PDF
+#             pdf_coordinates = (pdf_x, pdf_y, pdf_x + pdf_width, pdf_y + pdf_height)
+
+#             print(f"Debug Backend: Browser coordinates - x={x}, y={y}, w={width}, h={height}")
+#             print(f"Debug Backend: PDF coordinates - x={pdf_x}, y={pdf_y}, w={pdf_width}, h={pdf_height}")
+#             print(f"Debug Backend: PDF coordinates tuple - {pdf_coordinates}")
+#             print(f"Debug Backend: Page {page}, Algorithm {algorithm}")
+#             print(f"Debug Backend: Actual page dimensions - {actual_page_width}x{actual_page_height}")
+#             print(f"Debug Backend: Preview dimensions - {preview_width}x{preview_height}")
+            
+#             # Add signature image to PDF
+#             add_image_signature_to_pdf(pdf_path, signature_path, temp_pdf_path, pdf_coordinates, page)
+            
+#             # Sign the PDF digitally
+#             signed_filename = f"signed_{document.filename}"
+#             signed_pdf_path = Path(app.config['UPLOAD_FOLDER']) / signed_filename
+            
+#             # Get user's keys
+#             key_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'private_key.pem'
+#             cert_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'certificate.pem'
+            
+#             # Check if keys exist
+#             if not key_path.exists() or not cert_path.exists():
+#                 flash('Digital certificate not found. Please contact support.', 'danger')
+#                 return redirect(url_for('dashboard'))
+            
+#             # Signature metadata with selected algorithm
+#             metadata = {
+#                 'field_name': 'Signature1',
+#                 'reason': 'I approve this document',
+#                 'location': 'Ho Chi Minh City, VN',
+#                 'contact_info': current_user.email,
+#                 'md_algorithm': algorithm
+#             }
+            
+#             # Sign the PDF
+#             if 'signing_password' not in session:
+#                 flash('Session expired. Please log in again.', 'danger')
+#                 return redirect(url_for('login'))
+            
+#             try:
+#                 sign_pdf_with_timestamp(
+#                     temp_pdf_path,
+#                     signed_pdf_path,
+#                     cert_path,
+#                     key_path,
+#                     session['signing_password'],
+#                     app.config['TSA_URL'],
+#                     metadata
+#                 )
+                
+#                 # Update document record with algorithm info
+#                 document.signed = True
+#                 document.signed_filename = signed_filename
+#                 document.sign_date = datetime.utcnow()
+                
+#                 # Store the algorithm used
+#                 if hasattr(document, 'hash_algorithm'):
+#                     document.hash_algorithm = algorithm
+                    
+#                 db.session.commit()
+                
+#                 # Clean up temp file
+#                 if temp_pdf_path.exists():
+#                     os.remove(temp_pdf_path)
+                
+#                 flash(f'Document signed successfully using {algorithm.upper()}', 'success')
+#                 return redirect(url_for('view_document', document_id=document.id))
+                
+#             except Exception as e:
+#                 flash(f'Error signing document: {str(e)}', 'danger')
+#                 return redirect(url_for('dashboard'))
+                
+#         except Exception as e:
+#             flash(f'Error processing signature: {str(e)}', 'danger')
+#             return redirect(url_for('sign_document', document_id=document_id))
+    
+#     # GET request - render the signing page with saved signatures
+#     saved_signatures = SavedSignature.query.filter_by(user_id=current_user.id).order_by(SavedSignature.is_default.desc(), SavedSignature.created_date.desc()).all()
+#     return render_template('sign_pdf.html', document=document, saved_signatures=saved_signatures)
+
 @app.route('/sign/<int:document_id>', methods=['GET', 'POST'])
 @login_required
 def sign_document(document_id):
     document = Document.query.get_or_404(document_id)
     
-    # Check if document belongs to the current user
     if document.user_id != current_user.id:
         flash('Document not found', 'danger')
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        # Check if using saved signature or new signature
+        auth_token = request.form.get('auth_token')
+        if not auth_token:
+            auth_token = session.get('auth_token')
+        
+        if not auth_token:
+            flash('Authentication required for signing. Please log in again.', 'danger')
+            return redirect(url_for('login'))
+        
+        try:
+            signing_password = password_manager.retrieve_password(auth_token, current_user.id)
+            password_manager.extend_session(auth_token, current_user.id)
+        except ValueError as e:
+            flash(f'Authentication error: {str(e)}', 'danger')
+            return redirect(url_for('require_reauth', document_id=document_id, operation='sign'))
+        
         signature_source = request.form.get('signature_source', 'new')
         
         if signature_source == 'saved':
@@ -209,27 +456,22 @@ def sign_document(document_id):
                 flash('Please select a saved signature', 'danger')
                 return redirect(url_for('sign_document', document_id=document_id))
             
-            # Get the saved signature
             saved_signature = SavedSignature.query.get(signature_id)
             if not saved_signature or saved_signature.user_id != current_user.id:
                 flash('Invalid signature selection', 'danger')
                 return redirect(url_for('sign_document', document_id=document_id))
             
-            # Use the saved signature file
             signature_path = Path(app.config['SIGNATURE_FOLDER']) / saved_signature.filename
         else:
-            # Handle new signature (existing code)
             signature_data = request.form.get('signature')
             if not signature_data:
                 flash('Signature is required', 'danger')
                 return redirect(url_for('sign_document', document_id=document_id))
             
             try:
-                # Convert data URL to image and save
                 image_data = signature_data.split(',')[1]
                 image = Image.open(BytesIO(base64.b64decode(image_data)))
                 
-                # Save signature image
                 signature_filename = f"{current_user.id}_{document_id}_{uuid.uuid4()}.png"
                 signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
                 image.save(signature_path)
@@ -237,82 +479,59 @@ def sign_document(document_id):
                 flash(f'Error processing signature: {str(e)}', 'danger')
                 return redirect(url_for('sign_document', document_id=document_id))
         
-        # Get coordinates from form (rest of the existing code remains the same)
         x = float(request.form.get('x', 50))
         y = float(request.form.get('y', 500))
         width = float(request.form.get('width', 200))
         height = float(request.form.get('height', 100))
         page = int(request.form.get('page', 0))
         
-        # Get preview dimensions for coordinate conversion
         preview_width = float(request.form.get('preview_width', 800))
         preview_height = float(request.form.get('preview_height', 600))
 
-        # Validate preview dimensions to prevent division by zero
         if preview_width <= 0 or preview_height <= 0:
             flash('Invalid preview dimensions. Please try again.', 'danger')
             return redirect(url_for('sign_document', document_id=document_id))
 
-        # Get selected hash algorithm
         algorithm = request.form.get('algorithm', 'sha256')
         
-        # Validate algorithm choice
         valid_algorithms = ['sha256', 'sha384', 'sha512', 'sha3_256', 'sha3_512']
         if algorithm not in valid_algorithms:
             algorithm = 'sha256'  # Default to SHA-256 if invalid selection
             
         try:
-            # Path to the uploaded PDF
             pdf_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
             
-            # Path for output PDF with signature image
             temp_pdf_path = Path(app.config['UPLOAD_FOLDER']) / f"temp_{document.filename}"
             
-            # Open PDF to get actual page dimensions for coordinate conversion
             doc = fitz.open(pdf_path)
             if page >= len(doc):
                 flash(f'Selected page {page+1} is out of range', 'danger')
                 return redirect(url_for('sign_document', document_id=document_id))
             
-            # Get the actual page dimensions
             pdf_page = doc[page]
             actual_page_width = pdf_page.rect.width
             actual_page_height = pdf_page.rect.height
             doc.close()
 
-            # Convert from top-left origin (browser) to bottom-left origin (PDF)
             pdf_x = x
             pdf_y = y
             pdf_width = width
             pdf_height = height
 
-            # Create the coordinate tuple for PDF
             pdf_coordinates = (pdf_x, pdf_y, pdf_x + pdf_width, pdf_y + pdf_height)
-
-            print(f"Debug Backend: Browser coordinates - x={x}, y={y}, w={width}, h={height}")
-            print(f"Debug Backend: PDF coordinates - x={pdf_x}, y={pdf_y}, w={pdf_width}, h={pdf_height}")
-            print(f"Debug Backend: PDF coordinates tuple - {pdf_coordinates}")
-            print(f"Debug Backend: Page {page}, Algorithm {algorithm}")
-            print(f"Debug Backend: Actual page dimensions - {actual_page_width}x{actual_page_height}")
-            print(f"Debug Backend: Preview dimensions - {preview_width}x{preview_height}")
             
-            # Add signature image to PDF
             add_image_signature_to_pdf(pdf_path, signature_path, temp_pdf_path, pdf_coordinates, page)
             
-            # Sign the PDF digitally
             signed_filename = f"signed_{document.filename}"
             signed_pdf_path = Path(app.config['UPLOAD_FOLDER']) / signed_filename
             
-            # Get user's keys
             key_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'private_key.pem'
             cert_path = Path(app.config['KEYS_FOLDER']) / str(current_user.id) / 'certificate.pem'
             
-            # Check if keys exist
             if not key_path.exists() or not cert_path.exists():
                 flash('Digital certificate not found. Please contact support.', 'danger')
                 return redirect(url_for('dashboard'))
             
-            # Signature metadata with selected algorithm
             metadata = {
                 'field_name': 'Signature1',
                 'reason': 'I approve this document',
@@ -321,36 +540,30 @@ def sign_document(document_id):
                 'md_algorithm': algorithm
             }
             
-            # Sign the PDF
-            if 'signing_password' not in session:
-                flash('Session expired. Please log in again.', 'danger')
-                return redirect(url_for('login'))
-            
             try:
                 sign_pdf_with_timestamp(
                     temp_pdf_path,
                     signed_pdf_path,
                     cert_path,
                     key_path,
-                    session['signing_password'],
+                    signing_password,  # Use the securely retrieved password
                     app.config['TSA_URL'],
                     metadata
                 )
                 
-                # Update document record with algorithm info
                 document.signed = True
                 document.signed_filename = signed_filename
                 document.sign_date = datetime.utcnow()
                 
-                # Store the algorithm used
                 if hasattr(document, 'hash_algorithm'):
                     document.hash_algorithm = algorithm
                     
                 db.session.commit()
                 
-                # Clean up temp file
                 if temp_pdf_path.exists():
                     os.remove(temp_pdf_path)
+                
+                password_manager.clear_password_session(auth_token)
                 
                 flash(f'Document signed successfully using {algorithm.upper()}', 'success')
                 return redirect(url_for('view_document', document_id=document.id))
@@ -363,9 +576,21 @@ def sign_document(document_id):
             flash(f'Error processing signature: {str(e)}', 'danger')
             return redirect(url_for('sign_document', document_id=document_id))
     
-    # GET request - render the signing page with saved signatures
     saved_signatures = SavedSignature.query.filter_by(user_id=current_user.id).order_by(SavedSignature.is_default.desc(), SavedSignature.created_date.desc()).all()
     return render_template('sign_pdf.html', document=document, saved_signatures=saved_signatures)
+
+@app.route('/reauth/<int:document_id>/<operation>')
+@login_required
+def require_reauth(document_id, operation):
+    """Require re-authentication for sensitive operations"""
+    document = Document.query.get_or_404(document_id)
+    
+    # Check if document belongs to the current user
+    if document.user_id != current_user.id:
+        flash('Document not found', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('reauth.html', document=document, operation=operation)
 
 @app.route('/view_file/<int:document_id>')
 @login_required
