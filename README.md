@@ -271,16 +271,6 @@ This project serves as a comprehensive example of:
 4. **Certificate Management**: X.509 certificate lifecycle management
 5. **Software Architecture**: Clean, maintainable code structure
 
-## 🔮 Future Enhancements
-
-- [ ] Multi-language support (Vietnamese, English)
-- [ ] Mobile application development
-- [ ] Advanced certificate validation (OCSP, CRL)
-- [ ] Bulk document processing
-- [ ] Integration with external Certificate Authorities
-- [ ] Advanced audit reporting
-- [ ] API development for third-party integration
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please read the contributing guidelines and submit pull requests for any improvements.
@@ -296,10 +286,6 @@ python -m pytest tests/
 # Code formatting
 black esign-app/
 ```
-
-## 📄 License
-
-This project is released under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## 👨‍💻 Developer
 
