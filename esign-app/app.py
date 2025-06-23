@@ -13,7 +13,7 @@ from flask_login import LoginManager, current_user, login_user, logout_user, log
 from werkzeug.utils import secure_filename
 
 from config import Config
-from models import db, User, Document
+from models import db, User, Document, SavedSignature
 from utils.crypto import generate_key_pair
 from utils.pdf import add_image_signature_to_pdf, sign_pdf_with_timestamp
 
@@ -179,13 +179,44 @@ def sign_document(document_id):
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        # Get signature image data from request
-        signature_data = request.form.get('signature')
-        if not signature_data:
-            flash('Signature is required', 'danger')
-            return redirect(url_for('sign_document', document_id=document_id))
+        # Check if using saved signature or new signature
+        signature_source = request.form.get('signature_source', 'new')
         
-        # Get coordinates from form
+        if signature_source == 'saved':
+            signature_id = request.form.get('saved_signature_id')
+            if not signature_id:
+                flash('Please select a saved signature', 'danger')
+                return redirect(url_for('sign_document', document_id=document_id))
+            
+            # Get the saved signature
+            saved_signature = SavedSignature.query.get(signature_id)
+            if not saved_signature or saved_signature.user_id != current_user.id:
+                flash('Invalid signature selection', 'danger')
+                return redirect(url_for('sign_document', document_id=document_id))
+            
+            # Use the saved signature file
+            signature_path = Path(app.config['SIGNATURE_FOLDER']) / saved_signature.filename
+        else:
+            # Handle new signature (existing code)
+            signature_data = request.form.get('signature')
+            if not signature_data:
+                flash('Signature is required', 'danger')
+                return redirect(url_for('sign_document', document_id=document_id))
+            
+            try:
+                # Convert data URL to image and save
+                image_data = signature_data.split(',')[1]
+                image = Image.open(BytesIO(base64.b64decode(image_data)))
+                
+                # Save signature image
+                signature_filename = f"{current_user.id}_{document_id}_{uuid.uuid4()}.png"
+                signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
+                image.save(signature_path)
+            except Exception as e:
+                flash(f'Error processing signature: {str(e)}', 'danger')
+                return redirect(url_for('sign_document', document_id=document_id))
+        
+        # Get coordinates from form (rest of the existing code remains the same)
         x = float(request.form.get('x', 50))
         y = float(request.form.get('y', 500))
         width = float(request.form.get('width', 200))
@@ -210,15 +241,6 @@ def sign_document(document_id):
             algorithm = 'sha256'  # Default to SHA-256 if invalid selection
             
         try:
-            # Convert data URL to image and save
-            image_data = signature_data.split(',')[1]
-            image = Image.open(BytesIO(base64.b64decode(image_data)))
-            
-            # Save signature image
-            signature_filename = f"{current_user.id}_{document_id}_{uuid.uuid4()}.png"
-            signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
-            image.save(signature_path)
-            
             # Path to the uploaded PDF
             pdf_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
             
@@ -239,7 +261,6 @@ def sign_document(document_id):
 
             # Convert from top-left origin (browser) to bottom-left origin (PDF)
             pdf_x = x
-            # pdf_y = actual_page_height - y - height  # Flip Y coordinate here in backend
             pdf_y = y
             pdf_width = width
             pdf_height = height
@@ -300,7 +321,7 @@ def sign_document(document_id):
                 document.signed_filename = signed_filename
                 document.sign_date = datetime.utcnow()
                 
-                # Store the algorithm used (you'll need to add this field to your Document model)
+                # Store the algorithm used
                 if hasattr(document, 'hash_algorithm'):
                     document.hash_algorithm = algorithm
                     
@@ -321,8 +342,9 @@ def sign_document(document_id):
             flash(f'Error processing signature: {str(e)}', 'danger')
             return redirect(url_for('sign_document', document_id=document_id))
     
-    # GET request - render the signing page
-    return render_template('sign_pdf.html', document=document)
+    # GET request - render the signing page with saved signatures
+    saved_signatures = SavedSignature.query.filter_by(user_id=current_user.id).order_by(SavedSignature.is_default.desc(), SavedSignature.created_date.desc()).all()
+    return render_template('sign_pdf.html', document=document, saved_signatures=saved_signatures)
 
 @app.route('/view_file/<int:document_id>')
 @login_required
@@ -469,6 +491,195 @@ def get_page_image(document_id):
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/signatures')
+@login_required
+def manage_signatures():
+    signatures = SavedSignature.query.filter_by(user_id=current_user.id).order_by(SavedSignature.created_date.desc()).all()
+    return render_template('manage_signatures.html', signatures=signatures)
+
+@app.route('/signatures/create', methods=['GET', 'POST'])
+@login_required
+def create_signature():
+    if request.method == 'POST':
+        signature_data = request.form.get('signature')
+        signature_name = request.form.get('name', '').strip()
+        is_default = 'is_default' in request.form
+        
+        if not signature_data:
+            flash('Signature is required', 'danger')
+            return redirect(url_for('create_signature'))
+        
+        if not signature_name:
+            flash('Signature name is required', 'danger')
+            return redirect(url_for('create_signature'))
+        
+        # Check if name already exists for this user
+        existing = SavedSignature.query.filter_by(user_id=current_user.id, name=signature_name).first()
+        if existing:
+            flash('A signature with this name already exists', 'danger')
+            return redirect(url_for('create_signature'))
+        
+        try:
+            # Convert data URL to image and save
+            image_data = signature_data.split(',')[1]
+            image = Image.open(BytesIO(base64.b64decode(image_data)))
+            
+            # Save signature image
+            signature_filename = f"signature_{current_user.id}_{uuid.uuid4()}.png"
+            signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature_filename
+            image.save(signature_path)
+            
+            # If this is set as default, remove default from other signatures
+            if is_default:
+                SavedSignature.query.filter_by(user_id=current_user.id, is_default=True).update({'is_default': False})
+            
+            # Save to database
+            saved_signature = SavedSignature(
+                name=signature_name,
+                filename=signature_filename,
+                user_id=current_user.id,
+                is_default=is_default
+            )
+            db.session.add(saved_signature)
+            db.session.commit()
+            
+            flash('Signature saved successfully!', 'success')
+            return redirect(url_for('manage_signatures'))
+            
+        except Exception as e:
+            flash(f'Error saving signature: {str(e)}', 'danger')
+            return redirect(url_for('create_signature'))
+    
+    return render_template('create_signature.html')
+
+@app.route('/signatures/delete/<int:signature_id>', methods=['POST'])
+@login_required
+def delete_signature(signature_id):
+    signature = SavedSignature.query.get_or_404(signature_id)
+    
+    # Check if signature belongs to the current user
+    if signature.user_id != current_user.id:
+        flash('Signature not found', 'danger')
+        return redirect(url_for('manage_signatures'))
+    
+    try:
+        # Delete the file
+        signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature.filename
+        if signature_path.exists():
+            os.remove(signature_path)
+        
+        # Delete from database
+        db.session.delete(signature)
+        db.session.commit()
+        
+        flash('Signature deleted successfully!', 'success')
+    except Exception as e:
+        flash(f'Error deleting signature: {str(e)}', 'danger')
+    
+    return redirect(url_for('manage_signatures'))
+
+@app.route('/signatures/set_default/<int:signature_id>', methods=['POST'])
+@login_required
+def set_default_signature(signature_id):
+    signature = SavedSignature.query.get_or_404(signature_id)
+    
+    # Check if signature belongs to the current user
+    if signature.user_id != current_user.id:
+        flash('Signature not found', 'danger')
+        return redirect(url_for('manage_signatures'))
+    
+    try:
+        # Remove default from all signatures for this user
+        SavedSignature.query.filter_by(user_id=current_user.id, is_default=True).update({'is_default': False})
+        
+        # Set this signature as default
+        signature.is_default = True
+        db.session.commit()
+        
+        flash('Default signature updated!', 'success')
+    except Exception as e:
+        flash(f'Error updating default signature: {str(e)}', 'danger')
+    
+    return redirect(url_for('manage_signatures'))
+
+@app.route('/signatures/get/<int:signature_id>')
+@login_required
+def get_signature(signature_id):
+    signature = SavedSignature.query.get_or_404(signature_id)
+    
+    # Check if signature belongs to the current user
+    if signature.user_id != current_user.id:
+        return jsonify({'error': 'Signature not found'}), 404
+    
+    signature_path = Path(app.config['SIGNATURE_FOLDER']) / signature.filename
+    
+    if not signature_path.exists():
+        return jsonify({'error': 'Signature file not found'}), 404
+    
+    try:
+        with open(signature_path, 'rb') as f:
+            img_data = f.read()
+        
+        img_base64 = base64.b64encode(img_data).decode('utf-8')
+        return jsonify({
+            'image': f"data:image/png;base64,{img_base64}",
+            'name': signature.name
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/signature_image/<filename>')
+@login_required
+def get_signature_image(filename):
+    """Serve signature images securely"""
+    # Check if the signature belongs to the current user
+    signature = SavedSignature.query.filter_by(filename=filename, user_id=current_user.id).first()
+    if not signature:
+        return "Image not found", 404
+    
+    signature_path = Path(app.config['SIGNATURE_FOLDER']) / filename
+    if not signature_path.exists():
+        return "Image not found", 404
+    
+    return send_from_directory(
+        app.config['SIGNATURE_FOLDER'],
+        filename,
+        as_attachment=False
+    )
+
+# @app.route('/delete/<int:document_id>', methods=['POST'])
+# @login_required
+# def delete_document(document_id):
+#     document = Document.query.get_or_404(document_id)
+    
+#     # Check if document belongs to the current user
+#     if document.user_id != current_user.id:
+#         flash('Document not found', 'danger')
+#         return redirect(url_for('dashboard'))
+    
+#     try:
+#         # Delete the original file
+#         if document.filename:
+#             original_file_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
+#             if original_file_path.exists():
+#                 os.remove(original_file_path)
+        
+#         # Delete the signed file if it exists
+#         if document.signed and document.signed_filename:
+#             signed_file_path = Path(app.config['UPLOAD_FOLDER']) / document.signed_filename
+#             if signed_file_path.exists():
+#                 os.remove(signed_file_path)
+        
+#         # Delete from database
+#         db.session.delete(document)
+#         db.session.commit()
+        
+#         flash('Document deleted successfully!', 'success')
+#     except Exception as e:
+#         flash(f'Error deleting document: {str(e)}', 'danger')
+    
+#     return redirect(url_for('dashboard'))
 
 # Initialize database tables
 with app.app_context():

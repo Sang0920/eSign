@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}PDF eSigner - Create Signature{% endblock %}
+
+{% block styles %}
+<style>
+    #signature-pad {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background-color: #fff;
+        cursor: crosshair;
+        width: 100%;
+        height: 200px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Create New Signature</h4>
+            </div>
+            <div class="card-body">
+                <form id="signature-form" method="POST" action="{{ url_for('create_signature') }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Signature Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               placeholder="e.g., My Official Signature">
+                        <div class="form-text">Give your signature a name to easily identify it later.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Draw Your Signature</label>
+                        <canvas id="signature-pad"></canvas>
+                        <div class="d-flex justify-content-between mt-2">
+                            <button type="button" id="clear-signature" class="btn btn-outline-danger">Clear</button>
+                            <button type="button" id="preview-signature" class="btn btn-outline-info">Preview</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_default" name="is_default">
+                        <label class="form-check-label" for="is_default">
+                            Set as default signature
+                        </label>
+                        <div class="form-text">Default signature will be pre-selected when signing documents.</div>
+                    </div>
+
+                    <input type="hidden" id="signature" name="signature" required>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('manage_signatures') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" id="save-signature" class="btn btn-primary" disabled>Save Signature</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Signature Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="signature-preview" style="border: 1px solid #ddd; padding: 20px; background-color: #f8f9fa;">
+                    <!-- Preview will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Get the canvas element
+        const canvas = document.getElementById('signature-pad');
+
+        // Adjust canvas for high DPI displays
+        function resizeCanvas() {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * ratio;
+            canvas.height = rect.height * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Initialize SignaturePad
+        const signaturePad = new SignaturePad(canvas, {
+            minWidth: 1,
+            maxWidth: 3,
+            penColor: 'black',
+            backgroundColor: 'rgba(255, 255, 255, 0)'
+        });
+
+        // Clear signature
+        document.getElementById('clear-signature').addEventListener('click', function () {
+            signaturePad.clear();
+            document.getElementById('signature').value = '';
+            document.getElementById('save-signature').disabled = true;
+        });
+
+        // Preview signature
+        document.getElementById('preview-signature').addEventListener('click', function () {
+            if (signaturePad.isEmpty()) {
+                alert('Please create a signature first');
+                return;
+            }
+
+            const dataUrl = signaturePad.toDataURL('image/png');
+            const previewDiv = document.getElementById('signature-preview');
+            previewDiv.innerHTML = `<img src="${dataUrl}" style="max-width: 100%; height: auto;">`;
+            
+            const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+            modal.show();
+        });
+
+        // Update signature data and enable save button when pad changes
+        signaturePad.addEventListener('endStroke', function () {
+            if (!signaturePad.isEmpty()) {
+                const dataUrl = signaturePad.toDataURL('image/png');
+                document.getElementById('signature').value = dataUrl;
+                document.getElementById('save-signature').disabled = false;
+            }
+        });
+
+        // Form validation
+        document.getElementById('signature-form').addEventListener('submit', function (e) {
+            if (signaturePad.isEmpty()) {
+                e.preventDefault();
+                alert('Please create a signature before saving');
+                return false;
+            }
+
+            const nameField = document.getElementById('name');
+            if (!nameField.value.trim()) {
+                e.preventDefault();
+                alert('Please enter a name for your signature');
+                nameField.focus();
+                return false;
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -47,6 +47,45 @@
         padding: 15px;
         margin-bottom: 20px;
     }
+
+    .saved-signature-item {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .saved-signature-item:hover {
+        border-color: #007bff;
+        background-color: #f8f9fa;
+    }
+
+    .saved-signature-item.selected {
+        border-color: #007bff;
+        background-color: #e3f2fd;
+    }
+
+    .saved-signature-item img {
+        max-width: 100%;
+        max-height: 60px;
+        object-fit: contain;
+    }
+
+    .signature-source-tabs .nav-link {
+        border-radius: 0;
+    }
+
+    .signature-source-tabs .nav-link:first-child {
+        border-top-left-radius: 0.375rem;
+        border-bottom-left-radius: 0.375rem;
+    }
+
+    .signature-source-tabs .nav-link:last-child {
+        border-top-right-radius: 0.375rem;
+        border-bottom-right-radius: 0.375rem;
+    }
 </style>
 {% endblock %}
 
@@ -80,11 +119,66 @@
     <!-- Signature Tools Column -->
     <div class="col-md-4">
         <div class="signature-tools">
-            <h5 class="mb-3">Create Your Signature</h5>
-            <canvas id="signature-pad"></canvas>
-            <div class="d-flex justify-content-between mt-2">
-                <button id="clear-signature" class="btn btn-outline-danger">Clear</button>
-                <button id="add-signature" class="btn btn-primary">Add to Document</button>
+            <h5 class="mb-3">Choose Signature Method</h5>
+            
+            <!-- Signature Source Tabs -->
+            <ul class="nav nav-tabs signature-source-tabs mb-3" id="signatureSourceTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="saved-signatures-tab" data-bs-toggle="tab" data-bs-target="#saved-signatures" type="button" role="tab">
+                        Saved Signatures
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="new-signature-tab" data-bs-toggle="tab" data-bs-target="#new-signature" type="button" role="tab">
+                        Draw New
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="signatureSourceTabContent">
+                <!-- Saved Signatures Tab -->
+                <div class="tab-pane fade show active" id="saved-signatures" role="tabpanel">
+                    {% if saved_signatures %}
+                        <div id="saved-signatures-list">
+                            {% for signature in saved_signatures %}
+                            <div class="saved-signature-item" data-signature-id="{{ signature.id }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">
+                                            {{ signature.name }}
+                                            {% if signature.is_default %}
+                                            <span class="badge bg-primary ms-1">Default</span>
+                                            {% endif %}
+                                        </h6>
+                                        <small class="text-muted">{{ signature.created_date.strftime('%Y-%m-%d') }}</small>
+                                    </div>
+                                    <div class="signature-preview-container">
+                                        <img src="{{ url_for('get_signature_image', filename=signature.filename) }}" 
+                                             alt="{{ signature.name }}" class="signature-preview-img">
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button id="use-saved-signature" class="btn btn-primary w-100 mt-2" disabled>
+                            Add Selected Signature to Document
+                        </button>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <p class="mb-2">No saved signatures found.</p>
+                            <a href="{{ url_for('create_signature') }}" class="btn btn-sm btn-primary">Create Your First Signature</a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- New Signature Tab -->
+                <div class="tab-pane fade" id="new-signature" role="tabpanel">
+                    <canvas id="signature-pad"></canvas>
+                    <div class="d-flex justify-content-between mt-2">
+                        <button id="clear-signature" class="btn btn-outline-danger">Clear</button>
+                        <button id="add-signature" class="btn btn-primary">Add to Document</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -94,7 +188,9 @@
             </div>
             <div class="card-body">
                 <form id="sign-form" method="POST" action="{{ url_for('sign_document', document_id=document.id) }}">
-                    <input type="hidden" id="signature" name="signature" required>
+                    <input type="hidden" id="signature_source" name="signature_source" value="saved">
+                    <input type="hidden" id="saved_signature_id" name="saved_signature_id">
+                    <input type="hidden" id="signature" name="signature">
                     <input type="hidden" id="x" name="x" value="50">
                     <input type="hidden" id="y" name="y" value="500">
                     <input type="hidden" id="width" name="width" value="200">
@@ -123,76 +219,21 @@
                 </form>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- Algorithm Info Modal -->
-<div class="modal fade" id="algorithmInfoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Hash Algorithm Information</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Quick Actions</h6>
             </div>
-            <div class="modal-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Algorithm</th>
-                                <th>Security Level</th>
-                                <th>Output Size</th>
-                                <th>Compatibility</th>
-                                <th>Best For</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>SHA-256</td>
-                                <td>Good</td>
-                                <td>256 bits</td>
-                                <td>Excellent</td>
-                                <td>General use, widely compatible</td>
-                            </tr>
-                            <tr>
-                                <td>SHA-384</td>
-                                <td>Better</td>
-                                <td>384 bits</td>
-                                <td>Very Good</td>
-                                <td>Enhanced security needs</td>
-                            </tr>
-                            <tr>
-                                <td>SHA-512</td>
-                                <td>Best (SHA-2)</td>
-                                <td>512 bits</td>
-                                <td>Good</td>
-                                <td>High-value documents</td>
-                            </tr>
-                            <tr>
-                                <td>SHA3-256</td>
-                                <td>Advanced</td>
-                                <td>256 bits</td>
-                                <td>Moderate</td>
-                                <td>Future-proofing with good size</td>
-                            </tr>
-                            <tr>
-                                <td>SHA3-512</td>
-                                <td>Maximum</td>
-                                <td>512 bits</td>
-                                <td>Limited</td>
-                                <td>Maximum security, long-term preservation</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('manage_signatures') }}" class="btn btn-outline-primary btn-sm">
+                        Manage My Signatures
+                    </a>
+                    <a href="{{ url_for('create_signature') }}" class="btn btn-outline-success btn-sm">
+                        Create New Signature
+                    </a>
                 </div>
-                <div class="alert alert-info mt-3">
-                    <strong>Note:</strong> For most documents, SHA-256 provides adequate security.
-                    Choose stronger algorithms for highly sensitive information or documents that
-                    need to remain valid for many years.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -203,74 +244,121 @@
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Add the help button next to the algorithm select label
-        const algorithmLabel = document.querySelector('label[for="algorithm"]');
-        const helpButton = document.createElement('button');
-        helpButton.type = 'button';
-        helpButton.className = 'btn btn-sm btn-outline-info ms-2';
-        helpButton.innerHTML = '<i class="bi bi-question-circle"></i> Info';
-        helpButton.setAttribute('data-bs-toggle', 'modal');
-        helpButton.setAttribute('data-bs-target', '#algorithmInfoModal');
-        algorithmLabel.appendChild(helpButton);
-
         // PDF viewing variables
         let currentPage = 0;
         let totalPages = 1;
         let pdfPageSizes = [];
         let signaturePlaced = false;
-        let previewElements = {}; // Keep track of preview elements per page
+        let previewElements = {};
+        let selectedSignatureId = null;
+        let currentSignatureSource = 'saved';
 
-        // Get the canvas element
+        // Initialize SignaturePad
         const canvas = document.getElementById('signature-pad');
+        let signaturePad = null;
 
-        // Adjust canvas for high DPI displays
-        function resizeCanvas() {
-            // Get the computed size of the canvas
-            const ratio = Math.max(window.devicePixelRatio || 1, 1);
-            const rect = canvas.getBoundingClientRect();
+        function initializeSignaturePad() {
+            if (canvas && !signaturePad) {
+                function resizeCanvas() {
+                    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                    const rect = canvas.getBoundingClientRect();
+                    canvas.width = rect.width * ratio;
+                    canvas.height = rect.height * ratio;
+                    canvas.getContext("2d").scale(ratio, ratio);
+                }
 
-            // Set the canvas size
-            canvas.width = rect.width * ratio;
-            canvas.height = rect.height * ratio;
-            canvas.getContext("2d").scale(ratio, ratio);
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+
+                signaturePad = new SignaturePad(canvas, {
+                    minWidth: 1,
+                    maxWidth: 3,
+                    penColor: 'black',
+                    backgroundColor: 'rgba(255, 255, 255, 0)'
+                });
+            }
         }
-
-        // Resize the canvas initially and on window resize
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
-        // Initialize SignaturePad with proper settings
-        const signaturePad = new SignaturePad(canvas, {
-            minWidth: 1,
-            maxWidth: 3,
-            penColor: 'black',
-            backgroundColor: 'rgba(255, 255, 255, 0)'
-        });
 
         // Initialize PDF preview
         loadPdfInfo();
 
-        // Signature pad buttons
-        document.getElementById('clear-signature').addEventListener('click', function () {
-            signaturePad.clear();
+        // Handle signature source tabs
+        document.getElementById('saved-signatures-tab').addEventListener('click', function() {
+            currentSignatureSource = 'saved';
+            document.getElementById('signature_source').value = 'saved';
         });
 
-        document.getElementById('add-signature').addEventListener('click', function () {
-            if (signaturePad.isEmpty()) {
+        document.getElementById('new-signature-tab').addEventListener('click', function() {
+            currentSignatureSource = 'new';
+            document.getElementById('signature_source').value = 'new';
+            initializeSignaturePad();
+        });
+
+        // Handle saved signature selection
+        document.querySelectorAll('.saved-signature-item').forEach(item => {
+            item.addEventListener('click', function() {
+                // Remove selection from all items
+                document.querySelectorAll('.saved-signature-item').forEach(i => i.classList.remove('selected'));
+                
+                // Add selection to clicked item
+                this.classList.add('selected');
+                selectedSignatureId = this.dataset.signatureId;
+                document.getElementById('saved_signature_id').value = selectedSignatureId;
+                document.getElementById('use-saved-signature').disabled = false;
+            });
+        });
+
+        // Handle saved signature usage
+        document.getElementById('use-saved-signature')?.addEventListener('click', function() {
+            if (!selectedSignatureId) {
+                alert('Please select a signature first');
+                return;
+            }
+
+            // Build the URL properly using template variable
+            const getSignatureUrl = "{{ url_for('get_signature', signature_id=999999) }}".replace('999999', selectedSignatureId);
+            
+            // Fetch the signature image
+            fetch(getSignatureUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error loading signature: ' + data.error);
+                        return;
+                    }
+                    
+                    createSignaturePreview(data.image);
+                })
+                .catch(error => {
+                    console.error('Error fetching signature:', error);
+                    alert('Error loading signature');
+                });
+        });
+
+        // Handle new signature creation
+        document.getElementById('clear-signature')?.addEventListener('click', function () {
+            if (signaturePad) {
+                signaturePad.clear();
+            }
+        });
+
+        document.getElementById('add-signature')?.addEventListener('click', function () {
+            if (!signaturePad || signaturePad.isEmpty()) {
                 alert('Please create a signature first');
                 return;
             }
 
-            // Get signature as data URL
             const dataUrl = signaturePad.toDataURL('image/png');
             document.getElementById('signature').value = dataUrl;
+            createSignaturePreview(dataUrl);
+        });
 
+        function createSignaturePreview(dataUrl) {
             // Get preview container dimensions for the CURRENT page
             const currentPageContainer = document.getElementById(`pdf-container-${currentPage}`);
             const currentPageImg = document.getElementById(`page-image-${currentPage}`);
 
             if (currentPageContainer && currentPageImg) {
-                // Wait for image to be fully loaded
                 if (currentPageImg.complete && currentPageImg.naturalWidth > 0) {
                     setPreviewDimensions(currentPageImg);
                 } else {
@@ -284,7 +372,7 @@
             }
 
             function setPreviewDimensions(img) {
-                // Add hidden fields for preview dimensions - use NATURAL dimensions
+                // Add hidden fields for preview dimensions
                 let previewWidthInput = document.getElementById('preview_width');
                 let previewHeightInput = document.getElementById('preview_height');
 
@@ -304,23 +392,18 @@
                     document.getElementById('sign-form').appendChild(previewHeightInput);
                 }
 
-                // Use the displayed image dimensions (clientWidth/Height)
                 previewWidthInput.value = img.clientWidth;
                 previewHeightInput.value = img.clientHeight;
 
-                console.log(`Page ${currentPage}: Preview dimensions - Width: ${img.clientWidth}, Height: ${img.clientHeight}`);
-                console.log(`Page ${currentPage}: Natural dimensions - Width: ${img.naturalWidth}, Height: ${img.naturalHeight}`);
-
-                createSignaturePreview(dataUrl);
+                addSignatureToPage(dataUrl);
             }
-        });
+        }
 
-        function createSignaturePreview(dataUrl) {
+        function addSignatureToPage(dataUrl) {
             // Create or get the signature preview for the current page
             let preview = previewElements[currentPage];
 
             if (!preview) {
-                // Create new preview element for this page
                 preview = document.createElement('div');
                 preview.className = 'signature-preview';
                 preview.id = `signature-preview-${currentPage}`;
@@ -336,91 +419,37 @@
                 preview.style.zIndex = '100';
                 preview.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
 
-                // Add to current page container
                 const container = document.getElementById(`pdf-container-${currentPage}`);
                 container.appendChild(preview);
-
-                // Store reference to this preview
                 previewElements[currentPage] = preview;
             }
 
             // Set the preview image
             preview.style.backgroundImage = `url(${dataUrl})`;
 
-            // Position the preview in the center initially
+            // Position the preview in the center
             const container = document.getElementById(`pdf-container-${currentPage}`);
             const img = document.getElementById(`page-image-${currentPage}`);
 
-            // Calculate center position relative to the actual image, not container
             const imgRect = img.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
 
-            // Calculate the offset of the image within the container
             const imgOffsetX = imgRect.left - containerRect.left;
             const imgOffsetY = imgRect.top - containerRect.top;
 
-            // Center the signature on the image
             let left = imgOffsetX + (img.clientWidth - 200) / 2;
             let top = imgOffsetY + (img.clientHeight - 100) / 2;
 
             preview.style.left = left + 'px';
             preview.style.top = top + 'px';
 
-            // Calculate and store the correct coordinates
             updateSignatureCoordinates(preview, currentPage);
 
-            // Enable the finalize button
             document.getElementById('finalize-btn').disabled = false;
             signaturePlaced = true;
 
-            // Make the signature draggable
             makeSignatureDraggable(preview, currentPage);
         }
-
-        // function updateSignatureCoordinates(previewElement, pageNum) {
-        //     const img = document.getElementById(`page-image-${pageNum}`);
-        //     const container = document.getElementById(`pdf-container-${pageNum}`);
-
-        //     if (!img || !pdfPageSizes[pageNum]) return;
-
-        //     // Get the position relative to the container
-        //     const left = parseInt(previewElement.style.left) || 0;
-        //     const top = parseInt(previewElement.style.top) || 0;
-
-        //     // Calculate the offset of the image within the container
-        //     const imgRect = img.getBoundingClientRect();
-        //     const containerRect = container.getBoundingClientRect();
-        //     const imgOffsetX = imgRect.left - containerRect.left;
-        //     const imgOffsetY = imgRect.top - containerRect.top;
-
-        //     // Calculate position relative to the actual image
-        //     const relativeLeft = left - imgOffsetX;
-        //     const relativeTop = top - imgOffsetY;
-
-        //     // Calculate scale factors from displayed image to actual PDF
-        //     const scaleX = pdfPageSizes[pageNum].width / img.clientWidth;
-        //     const scaleY = pdfPageSizes[pageNum].height / img.clientHeight;
-
-        //     // Convert to PDF coordinates
-        //     const pdfX = relativeLeft * scaleX;
-        //     const pdfWidth = previewElement.offsetWidth * scaleX;
-        //     const pdfHeight = previewElement.offsetHeight * scaleY;
-
-        //     // *** THIS IS THE CORRECT Y CALCULATION ***
-        //     const pdfY = pdfPageSizes[pageNum].height - ((relativeTop + previewElement.offsetHeight) * scaleY);
-
-        //     // Update form values
-        //     document.getElementById('x').value = pdfX;
-        //     document.getElementById('y').value = pdfY;
-        //     document.getElementById('width').value = pdfWidth;
-        //     document.getElementById('height').value = pdfHeight;
-        //     document.getElementById('page').value = pageNum;
-
-        //     console.log(`Debug: Container pos (${left}, ${top}), Image relative pos (${relativeLeft}, ${relativeTop})`);
-        //     console.log(`Debug: PDF coordinates (${pdfX}, ${pdfY}), Size (${pdfWidth}, ${pdfHeight})`);
-        //     console.log(`Debug: Scale factors - X: ${scaleX}, Y: ${scaleY}`);
-        //     console.log(`Debug: PDF page height: ${pdfPageSizes[pageNum].height}`);
-        // }
 
         function updateSignatureCoordinates(previewElement, pageNum) {
             const img = document.getElementById(`page-image-${pageNum}`);
@@ -428,57 +457,40 @@
 
             if (!img || !pdfPageSizes[pageNum]) return;
 
-            // Get the position relative to the container
             const left = parseInt(previewElement.style.left) || 0;
             const top = parseInt(previewElement.style.top) || 0;
 
-            // Calculate the offset of the image within the container
             const imgRect = img.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
             const imgOffsetX = imgRect.left - containerRect.left;
             const imgOffsetY = imgRect.top - containerRect.top;
 
-            // Calculate position relative to the actual image
             const relativeLeft = left - imgOffsetX;
             const relativeTop = top - imgOffsetY;
 
-            // Calculate scale factors from displayed image to actual PDF
             const scaleX = pdfPageSizes[pageNum].width / img.clientWidth;
             const scaleY = pdfPageSizes[pageNum].height / img.clientHeight;
 
-            // Convert to PDF coordinates
             const pdfX = relativeLeft * scaleX;
             const pdfWidth = previewElement.offsetWidth * scaleX;
             const pdfHeight = previewElement.offsetHeight * scaleY;
-
-            // CORRECTED Y CALCULATION - Use direct mapping instead of flipping
-            // This makes top of browser = top of PDF, bottom of browser = bottom of PDF
             const pdfY = relativeTop * scaleY;
 
-            // Update form values
             document.getElementById('x').value = pdfX;
             document.getElementById('y').value = pdfY;
             document.getElementById('width').value = pdfWidth;
             document.getElementById('height').value = pdfHeight;
             document.getElementById('page').value = pageNum;
-
-            console.log(`Debug: Container pos (${left}, ${top}), Image relative pos (${relativeLeft}, ${relativeTop})`);
-            console.log(`Debug: PDF coordinates (${pdfX}, ${pdfY}), Size (${pdfWidth}, ${pdfHeight})`);
-            console.log(`Debug: Scale factors - X: ${scaleX}, Y: ${scaleY}`);
-            console.log(`Debug: PDF page height: ${pdfPageSizes[pageNum].height}`);
         }
-
 
         function makeSignatureDraggable(previewElement, pageNum) {
             let isDragging = false;
             let offsetX, offsetY;
 
-            // Mouse down event for desktop
             previewElement.addEventListener('mousedown', function (e) {
                 e.preventDefault();
                 isDragging = true;
 
-                // Get the offset within the element where the mouse was clicked
                 const rect = previewElement.getBoundingClientRect();
                 offsetX = e.clientX - rect.left;
                 offsetY = e.clientY - rect.top;
@@ -486,81 +498,35 @@
                 previewElement.style.cursor = 'grabbing';
             });
 
-            // Mouse move event for desktop
             document.addEventListener('mousemove', function (e) {
                 if (!isDragging) return;
 
                 const container = document.getElementById(`pdf-container-${pageNum}`);
                 const containerRect = container.getBoundingClientRect();
 
-                // Calculate the new position
                 let left = e.clientX - containerRect.left - offsetX;
                 let top = e.clientY - containerRect.top - offsetY;
 
-                // Constrain to container boundaries
                 left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
                 top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
 
-                // Update element position
                 previewElement.style.left = left + 'px';
                 previewElement.style.top = top + 'px';
 
-                // Update coordinates when dragging on current page - USE CONSISTENT CALCULATION
                 if (pageNum === currentPage) {
                     updateSignatureCoordinates(previewElement, pageNum);
                 }
             });
 
-            // Mouse up event for desktop
             document.addEventListener('mouseup', function () {
                 if (isDragging) {
                     isDragging = false;
                     previewElement.style.cursor = 'move';
                 }
             });
-
-            // Touch events for mobile devices
-            previewElement.addEventListener('touchstart', function (e) {
-                e.preventDefault();
-                const touch = e.touches[0];
-
-                isDragging = true;
-                const rect = previewElement.getBoundingClientRect();
-                offsetX = touch.clientX - rect.left;
-                offsetY = touch.clientY - rect.top;
-            });
-
-            document.addEventListener('touchmove', function (e) {
-                if (!isDragging) return;
-                e.preventDefault();
-
-                const touch = e.touches[0];
-                const container = document.getElementById(`pdf-container-${pageNum}`);
-                const containerRect = container.getBoundingClientRect();
-
-                let left = touch.clientX - containerRect.left - offsetX;
-                let top = touch.clientY - containerRect.top - offsetY;
-
-                // Constrain to container boundaries
-                left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
-                top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
-
-                previewElement.style.left = left + 'px';
-                previewElement.style.top = top + 'px';
-
-                // Use consistent coordinate calculation for touch as well
-                if (pageNum === currentPage) {
-                    updateSignatureCoordinates(previewElement, pageNum);
-                }
-            });
-
-            document.addEventListener('touchend', function () {
-                if (isDragging) {
-                    isDragging = false;
-                }
-            });
         }
-        // Navigation buttons
+
+        // Navigation functions
         document.getElementById('prev-page').addEventListener('click', function () {
             if (currentPage > 0) {
                 navigateToPage(currentPage - 1);
@@ -573,14 +539,12 @@
             }
         });
 
-        // Load PDF information
         function loadPdfInfo() {
             fetch(`{{ url_for('preview_document', document_id=document.id) }}`)
                 .then(response => response.json())
                 .then(data => {
                     totalPages = data.pageCount;
 
-                    // Create page tabs
                     const tabsContainer = document.getElementById('page-tabs');
                     const tabContentContainer = document.getElementById('page-tab-content');
 
@@ -602,7 +566,6 @@
                         button.setAttribute('role', 'tab');
                         button.textContent = `Page ${i + 1}`;
 
-                        // Add click event listener
                         button.addEventListener('click', function () {
                             navigateToPage(i);
                         });
@@ -629,10 +592,7 @@
                         tabContentContainer.appendChild(div);
                     }
 
-                    // Update page indicator
                     updatePageIndicator();
-
-                    // Load the first page
                     loadPage(0);
                 })
                 .catch(error => {
@@ -641,9 +601,7 @@
                 });
         }
 
-        // Load a specific page
         function loadPage(pageNum) {
-            // Check if already loaded
             const img = document.getElementById(`page-image-${pageNum}`);
             if (img.src) return;
 
@@ -651,8 +609,6 @@
                 .then(response => response.json())
                 .then(data => {
                     img.src = data.image;
-
-                    // Store page dimensions
                     pdfPageSizes[pageNum] = {
                         width: data.width,
                         height: data.height
@@ -663,156 +619,27 @@
                 });
         }
 
-        // Navigate to a specific page
         function navigateToPage(pageNum) {
-            // Update current page
             currentPage = pageNum;
-
-            // Update page indicator
             updatePageIndicator();
 
-            // Enable/disable navigation buttons
             document.getElementById('prev-page').disabled = currentPage === 0;
             document.getElementById('next-page').disabled = currentPage === totalPages - 1;
 
-            // Load the page if not already loaded
             loadPage(pageNum);
 
-            // Update the form with current page
             if (signaturePlaced && previewElements[currentPage]) {
                 document.getElementById('page').value = currentPage;
             }
 
-            // Activate the correct tab
             const tabEl = document.getElementById(`page-${pageNum}-tab`);
             const tab = new bootstrap.Tab(tabEl);
             tab.show();
         }
 
-        // Update page indicator
         function updatePageIndicator() {
             document.getElementById('page-indicator').textContent = `Page ${currentPage + 1} of ${totalPages}`;
         }
-
-        // // Make signature preview draggable
-        // function makeSignatureDraggable(previewElement, pageNum) {
-        //     let isDragging = false;
-        //     let offsetX, offsetY;
-
-        //     // Get the initial position
-        //     let initialLeft = parseInt(previewElement.style.left) || 0;
-        //     let initialTop = parseInt(previewElement.style.top) || 0;
-
-        //     // Update form with initial position
-        //     if (pageNum === currentPage) {
-        //         document.getElementById('x').value = initialLeft;
-        //         document.getElementById('y').value = initialTop;
-        //         document.getElementById('width').value = previewElement.offsetWidth;
-        //         document.getElementById('height').value = previewElement.offsetHeight;
-        //         document.getElementById('page').value = pageNum;
-        //     }
-
-        //     // Mouse down event for desktop
-        //     previewElement.addEventListener('mousedown', function (e) {
-        //         e.preventDefault();
-        //         isDragging = true;
-
-        //         // Get the offset within the element where the mouse was clicked
-        //         const rect = previewElement.getBoundingClientRect();
-        //         offsetX = e.clientX - rect.left;
-        //         offsetY = e.clientY - rect.top;
-
-        //         previewElement.style.cursor = 'grabbing';
-        //     });
-
-        //     // Mouse move event for desktop
-        //     document.addEventListener('mousemove', function (e) {
-        //         if (!isDragging) return;
-
-        //         const container = document.getElementById(`pdf-container-${pageNum}`);
-        //         const containerRect = container.getBoundingClientRect();
-
-        //         // Calculate the new position
-        //         let left = e.clientX - containerRect.left - offsetX;
-        //         let top = e.clientY - containerRect.top - offsetY;
-
-        //         // Constrain to container boundaries
-        //         left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
-        //         top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
-
-        //         // Update element position
-        //         previewElement.style.left = left + 'px';
-        //         previewElement.style.top = top + 'px';
-
-        //         // Update form values if this is the current page
-        //         if (pageNum === currentPage) {
-        //             // Get the PDF page dimensions
-        //             const img = document.getElementById(`page-image-${pageNum}`);
-        //             const containerRect = container.getBoundingClientRect();
-
-        //             // Calculate scale factors
-        //             const scaleX = pdfPageSizes[pageNum].width / img.naturalWidth;
-        //             const scaleY = pdfPageSizes[pageNum].height / img.naturalHeight;
-
-        //             // Transform coordinates from browser to PDF coordinate system
-        //             const pdfX = left * scaleX;
-        //             const pdfY = pdfPageSizes[pageNum].height - ((top + previewElement.offsetHeight) * scaleY);
-        //             const pdfWidth = previewElement.offsetWidth * scaleX;
-        //             const pdfHeight = previewElement.offsetHeight * scaleY;
-
-        //             document.getElementById('x').value = pdfX;
-        //             document.getElementById('y').value = pdfY;
-        //             document.getElementById('width').value = pdfWidth;
-        //             document.getElementById('height').value = pdfHeight;
-        //         }
-        //     });
-
-        //     // Mouse up event for desktop
-        //     document.addEventListener('mouseup', function () {
-        //         if (isDragging) {
-        //             isDragging = false;
-        //             previewElement.style.cursor = 'move';
-        //         }
-        //     });
-
-        //     // Touch events for mobile devices
-        //     previewElement.addEventListener('touchstart', function (e) {
-        //         e.preventDefault();
-        //         const touch = e.touches[0];
-
-        //         isDragging = true;
-        //         const rect = previewElement.getBoundingClientRect();
-        //         offsetX = touch.clientX - rect.left;
-        //         offsetY = touch.clientY - rect.top;
-        //     });
-
-        //     document.addEventListener('touchmove', function (e) {
-        //         if (!isDragging) return;
-
-        //         const touch = e.touches[0];
-        //         const container = document.getElementById(`pdf-container-${pageNum}`);
-        //         const containerRect = container.getBoundingClientRect();
-
-        //         let left = touch.clientX - containerRect.left - offsetX;
-        //         let top = touch.clientY - containerRect.top - offsetY;
-
-        //         left = Math.max(0, Math.min(left, containerRect.width - previewElement.offsetWidth));
-        //         top = Math.max(0, Math.min(top, containerRect.height - previewElement.offsetHeight));
-
-        //         previewElement.style.left = left + 'px';
-        //         previewElement.style.top = top + 'px';
-
-        //         if (pageNum === currentPage) {
-        //             document.getElementById('x').value = left;
-        //             document.getElementById('y').value = top;
-        //         }
-        //     });
-
-        //     document.addEventListener('touchend', function () {
-        //         isDragging = false;
-        //     });
-        // };
-
     });
 </script>
 {% endblock %}

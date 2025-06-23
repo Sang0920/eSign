@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}PDF eSigner - My Signatures{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>My Signatures</h2>
+    <a href="{{ url_for('create_signature') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Create New Signature
+    </a>
+</div>
+
+{% if signatures %}
+<div class="row">
+    {% for signature in signatures %}
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="signature-preview mb-3" style="height: 120px; border: 1px solid #ddd; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center;">
+                    <img src="{{ url_for('get_signature_image', filename=signature.filename) }}" 
+                         alt="{{ signature.name }}" 
+                         style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <div style="display: none; color: #6c757d;">
+                        <i class="bi bi-image"></i>
+                        <br>Image not available
+                    </div>
+                </div>
+                <h5 class="card-title">
+                    {{ signature.name }}
+                    {% if signature.is_default %}
+                    <span class="badge bg-primary ms-2">Default</span>
+                    {% endif %}
+                </h5>
+                <p class="card-text">
+                    <small class="text-muted">Created: {{ signature.created_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                </p>
+                <div class="btn-group w-100">
+                    {% if not signature.is_default %}
+                    <form method="POST" action="{{ url_for('set_default_signature', signature_id=signature.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Set as Default</button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('delete_signature', signature_id=signature.id) }}" 
+                          onsubmit="return confirm('Are you sure you want to delete this signature?')" style="display: inline;">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    <h4>No signatures saved yet</h4>
+    <p>Create your first signature to reuse it across multiple documents.</p>
+    <a href="{{ url_for('create_signature') }}" class="btn btn-primary">Create Your First Signature</a>
+</div>
+{% endif %}
+{% endblock %}
