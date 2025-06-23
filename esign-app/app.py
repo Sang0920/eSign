@@ -648,38 +648,38 @@ def get_signature_image(filename):
         as_attachment=False
     )
 
-# @app.route('/delete/<int:document_id>', methods=['POST'])
-# @login_required
-# def delete_document(document_id):
-#     document = Document.query.get_or_404(document_id)
+@app.route('/delete/<int:document_id>', methods=['POST'])
+@login_required
+def delete_document(document_id):
+    document = Document.query.get_or_404(document_id)
     
-#     # Check if document belongs to the current user
-#     if document.user_id != current_user.id:
-#         flash('Document not found', 'danger')
-#         return redirect(url_for('dashboard'))
+    # Check if document belongs to the current user
+    if document.user_id != current_user.id:
+        flash('Document not found', 'danger')
+        return redirect(url_for('dashboard'))
     
-#     try:
-#         # Delete the original file
-#         if document.filename:
-#             original_file_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
-#             if original_file_path.exists():
-#                 os.remove(original_file_path)
+    try:
+        # Delete the original file
+        if document.filename:
+            original_file_path = Path(app.config['UPLOAD_FOLDER']) / document.filename
+            if original_file_path.exists():
+                os.remove(original_file_path)
         
-#         # Delete the signed file if it exists
-#         if document.signed and document.signed_filename:
-#             signed_file_path = Path(app.config['UPLOAD_FOLDER']) / document.signed_filename
-#             if signed_file_path.exists():
-#                 os.remove(signed_file_path)
+        # Delete the signed file if it exists
+        if document.signed and document.signed_filename:
+            signed_file_path = Path(app.config['UPLOAD_FOLDER']) / document.signed_filename
+            if signed_file_path.exists():
+                os.remove(signed_file_path)
         
-#         # Delete from database
-#         db.session.delete(document)
-#         db.session.commit()
+        # Delete from database
+        db.session.delete(document)
+        db.session.commit()
         
-#         flash('Document deleted successfully!', 'success')
-#     except Exception as e:
-#         flash(f'Error deleting document: {str(e)}', 'danger')
+        flash('Document deleted successfully!', 'success')
+    except Exception as e:
+        flash(f'Error deleting document: {str(e)}', 'danger')
     
-#     return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard'))
 
 # Initialize database tables
 with app.app_context():

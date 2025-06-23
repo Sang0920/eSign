@@ -44,11 +44,29 @@
                 <td>
                     <div class="btn-group" role="group">
                         {% if document.signed %}
-                        <a href="{{ url_for('view_document', document_id=document.id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                        <a href="{{ url_for('download_document', document_id=document.id) }}" class="btn btn-sm btn-outline-success">Download</a>
+                        <a href="{{ url_for('view_document', document_id=document.id) }}"
+                            class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> View
+                        </a>
+                        <a href="{{ url_for('download_document', document_id=document.id) }}"
+                            class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-download"></i> Download
+                        </a>
                         {% else %}
-                        <a href="{{ url_for('sign_document', document_id=document.id) }}" class="btn btn-sm btn-outline-primary">Sign</a>
+                        <a href="{{ url_for('sign_document', document_id=document.id) }}"
+                            class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pen"></i> Sign
+                        </a>
                         {% endif %}
+
+                        <!-- Delete button with confirmation -->
+                        <form method="POST" action="{{ url_for('delete_document', document_id=document.id) }}"
+                            style="display: inline;"
+                            onsubmit="return confirmDelete('{{ document.original_filename }}')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </form>
                     </div>
                 </td>
             </tr>
@@ -61,4 +79,53 @@
     You haven't uploaded any documents yet. Upload a PDF to get started.
 </div>
 {% endif %}
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteFileName"></strong>?</p>
+                <p class="text-muted">This action cannot be undone. Both the original and signed versions (if any) will
+                    be permanently deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Document</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let deleteForm = null;
+
+    function confirmDelete(filename) {
+        event.preventDefault();
+        deleteForm = event.target;
+        document.getElementById('deleteFileName').textContent = filename;
+
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+
+        return false;
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
+        if (deleteForm) {
+            deleteForm.submit();
+        }
+    });
+
+    // Alternative simple confirmation (you can use this instead of the modal)
+    function simpleConfirmDelete(filename) {
+        return confirm(`Are you sure you want to delete "${filename}"?\n\nThis action cannot be undone. Both the original and signed versions (if any) will be permanently deleted.`);
+    }
+</script>
 {% endblock %}
