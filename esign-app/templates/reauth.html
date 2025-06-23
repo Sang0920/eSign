@@ -17,19 +17,19 @@
                     <i class="bi bi-info-circle me-2"></i>
                     For your security, please confirm your password to continue with document signing.
                 </div>
-                
+
                 <p><strong>Document:</strong> {{ document.original_filename }}</p>
                 <p><strong>Operation:</strong> Digital Signature</p>
-                
+
                 <form id="reauthForm">
                     <input type="hidden" id="operation" value="{{ operation }}">
                     <input type="hidden" id="document_id" value="{{ document.id }}">
-                    
+
                     <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
                         <input type="password" class="form-control" id="password" name="password" required autofocus>
                     </div>
-                    
+
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check-circle me-1"></i>
@@ -49,34 +49,61 @@
 
 {% block scripts %}
 <script>
-document.getElementById('reauthForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData();
-    formData.append('password', document.getElementById('password').value);
-    formData.append('operation', document.getElementById('operation').value);
-    formData.append('document_id', document.getElementById('document_id').value);
-    
-    fetch('{{ url_for("confirm_password") }}', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Store auth token and redirect
-            sessionStorage.setItem('auth_token', data.auth_token);
-            window.location.href = data.redirect_url;
-        } else {
-            alert('Invalid password. Please try again.');
-            document.getElementById('password').value = '';
-            document.getElementById('password').focus();
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred. Please try again.');
+    document.getElementById('reauthForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const formData = new FormData();
+        formData.append('password', document.getElementById('password').value);
+        formData.append('operation', document.getElementById('operation').value);
+        formData.append('document_id', document.getElementById('document_id').value);
+
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Verifying...';
+        submitBtn.disabled = true;
+
+        fetch('{{ url_for("confirm_password") }}', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Store auth token in session storage and form
+                    sessionStorage.setItem('auth_token', data.auth_token);
+
+                    // Create a form to submit the auth token
+                    const form = document.createElement('form');
+                    form.method = 'GET';
+                    form.action = data.redirect_url;
+
+                    const tokenInput = document.createElement('input');
+                    tokenInput.type = 'hidden';
+                    tokenInput.name = 'auth_token';
+                    tokenInput.value = data.auth_token;
+                    form.appendChild(tokenInput);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    alert('Invalid password. Please try again.');
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').focus();
+
+                    // Restore button state
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+
+                // Restore button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
     });
-});
 </script>
 {% endblock %}

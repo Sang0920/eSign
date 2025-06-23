@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from io import BytesIO
 import base64
+from venv import logger
 from PIL import Image
 import click
 import fitz  # PyMuPDF
@@ -128,15 +129,27 @@ def confirm_password():
     document_id = request.form.get('document_id')
     
     if not current_user.check_password(password):
+        logger.warning(f"Invalid password attempt for user {current_user.id}")
         return jsonify({'success': False, 'error': 'Invalid password'})
     
-    auth_token = password_manager.store_password_temporarily(password, current_user.id)
-    
-    return jsonify({
-        'success': True, 
-        'auth_token': auth_token,
-        'redirect_url': url_for('sign_document', document_id=document_id) if operation == 'sign' else None
-    })
+    try:
+        auth_token = password_manager.store_password_temporarily(password, current_user.id)
+        
+        # Also store in session as backup
+        session['auth_token'] = auth_token
+        session.permanent = True
+        
+        logger.info(f"Successfully created auth session for user {current_user.id}")
+        
+        return jsonify({
+            'success': True, 
+            'auth_token': auth_token,
+            'redirect_url': url_for('sign_document', document_id=document_id) if operation == 'sign' else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to create auth session for user {current_user.id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to create authentication session'})
 
 @app.route('/logout')
 def logout():
@@ -215,19 +228,26 @@ def sign_document(document_id):
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        auth_token = request.form.get('auth_token')
-        if not auth_token:
-            auth_token = session.get('auth_token')
+        # Try multiple sources for auth token
+        auth_token = (
+            request.form.get('auth_token') or 
+            request.headers.get('X-Auth-Token') or
+            session.get('auth_token')
+        )
         
         if not auth_token:
-            flash('Authentication required for signing. Please log in again.', 'danger')
-            return redirect(url_for('login'))
+            logger.warning(f"No auth token found for user {current_user.id} signing document {document_id}")
+            flash('Authentication required for signing. Please verify your password.', 'warning')
+            return redirect(url_for('require_reauth', document_id=document_id, operation='sign'))
         
         try:
             signing_password = password_manager.retrieve_password(auth_token, current_user.id)
             password_manager.extend_session(auth_token, current_user.id)
         except ValueError as e:
-            flash(f'Authentication error: {str(e)}', 'danger')
+            logger.warning(f"Authentication error for user {current_user.id}: {str(e)}")
+            # Clear any stale sessions
+            password_manager.clear_password_session()
+            flash(f'Authentication error: {str(e)}. Please verify your password again.', 'warning')
             return redirect(url_for('require_reauth', document_id=document_id, operation='sign'))
         
         signature_source = request.form.get('signature_source', 'new')
@@ -273,7 +293,7 @@ def sign_document(document_id):
         if preview_width <= 0 or preview_height <= 0:
             flash('Invalid preview dimensions. Please try again.', 'danger')
             return redirect(url_for('sign_document', document_id=document_id))
-
+        
         algorithm = request.form.get('algorithm', 'sha256')
         
         valid_algorithms = ['sha256', 'sha384', 'sha512', 'sha3_256', 'sha3_512']
@@ -345,16 +365,19 @@ def sign_document(document_id):
                 if temp_pdf_path.exists():
                     os.remove(temp_pdf_path)
                 
+                # Clear the password session after successful signing
                 password_manager.clear_password_session(auth_token)
                 
                 flash(f'Document signed successfully using {algorithm.upper()}', 'success')
                 return redirect(url_for('view_document', document_id=document.id))
                 
             except Exception as e:
+                logger.error(f"Error signing document {document_id} for user {current_user.id}: {e}")
                 flash(f'Error signing document: {str(e)}', 'danger')
                 return redirect(url_for('dashboard'))
                 
         except Exception as e:
+            logger.error(f"Error processing signature for document {document_id}: {e}")
             flash(f'Error processing signature: {str(e)}', 'danger')
             return redirect(url_for('sign_document', document_id=document_id))
     

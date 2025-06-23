@@ -120,16 +120,18 @@
     <div class="col-md-4">
         <div class="signature-tools">
             <h5 class="mb-3">Choose Signature Method</h5>
-            
+
             <!-- Signature Source Tabs -->
             <ul class="nav nav-tabs signature-source-tabs mb-3" id="signatureSourceTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="saved-signatures-tab" data-bs-toggle="tab" data-bs-target="#saved-signatures" type="button" role="tab">
+                    <button class="nav-link active" id="saved-signatures-tab" data-bs-toggle="tab"
+                        data-bs-target="#saved-signatures" type="button" role="tab">
                         Saved Signatures
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="new-signature-tab" data-bs-toggle="tab" data-bs-target="#new-signature" type="button" role="tab">
+                    <button class="nav-link" id="new-signature-tab" data-bs-toggle="tab" data-bs-target="#new-signature"
+                        type="button" role="tab">
                         Draw New
                     </button>
                 </li>
@@ -139,35 +141,36 @@
                 <!-- Saved Signatures Tab -->
                 <div class="tab-pane fade show active" id="saved-signatures" role="tabpanel">
                     {% if saved_signatures %}
-                        <div id="saved-signatures-list">
-                            {% for signature in saved_signatures %}
-                            <div class="saved-signature-item" data-signature-id="{{ signature.id }}">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="flex-grow-1">
-                                        <h6 class="mb-1">
-                                            {{ signature.name }}
-                                            {% if signature.is_default %}
-                                            <span class="badge bg-primary ms-1">Default</span>
-                                            {% endif %}
-                                        </h6>
-                                        <small class="text-muted">{{ signature.created_date.strftime('%Y-%m-%d') }}</small>
-                                    </div>
-                                    <div class="signature-preview-container">
-                                        <img src="{{ url_for('get_signature_image', filename=signature.filename) }}" 
-                                             alt="{{ signature.name }}" class="signature-preview-img">
-                                    </div>
+                    <div id="saved-signatures-list">
+                        {% for signature in saved_signatures %}
+                        <div class="saved-signature-item" data-signature-id="{{ signature.id }}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        {{ signature.name }}
+                                        {% if signature.is_default %}
+                                        <span class="badge bg-primary ms-1">Default</span>
+                                        {% endif %}
+                                    </h6>
+                                    <small class="text-muted">{{ signature.created_date.strftime('%Y-%m-%d') }}</small>
+                                </div>
+                                <div class="signature-preview-container">
+                                    <img src="{{ url_for('get_signature_image', filename=signature.filename) }}"
+                                        alt="{{ signature.name }}" class="signature-preview-img">
                                 </div>
                             </div>
-                            {% endfor %}
                         </div>
-                        <button id="use-saved-signature" class="btn btn-primary w-100 mt-2" disabled>
-                            Add Selected Signature to Document
-                        </button>
+                        {% endfor %}
+                    </div>
+                    <button id="use-saved-signature" class="btn btn-primary w-100 mt-2" disabled>
+                        Add Selected Signature to Document
+                    </button>
                     {% else %}
-                        <div class="alert alert-info">
-                            <p class="mb-2">No saved signatures found.</p>
-                            <a href="{{ url_for('create_signature') }}" class="btn btn-sm btn-primary">Create Your First Signature</a>
-                        </div>
+                    <div class="alert alert-info">
+                        <p class="mb-2">No saved signatures found.</p>
+                        <a href="{{ url_for('create_signature') }}" class="btn btn-sm btn-primary">Create Your First
+                            Signature</a>
+                    </div>
                     {% endif %}
                 </div>
 
@@ -196,6 +199,8 @@
                     <input type="hidden" id="width" name="width" value="200">
                     <input type="hidden" id="height" name="height" value="100">
                     <input type="hidden" id="page" name="page" value="0">
+                    <input type="hidden" id="auth_token" name="auth_token" value="">
+
 
                     <div class="mb-3">
                         <label for="algorithm" class="form-label">Signature Hash Algorithm</label>
@@ -244,6 +249,13 @@
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authToken = urlParams.get('auth_token') || sessionStorage.getItem('auth_token');
+
+        if (authToken) {
+            document.getElementById('auth_token').value = authToken;
+        }
+        
         // PDF viewing variables
         let currentPage = 0;
         let totalPages = 1;
@@ -283,12 +295,12 @@
         loadPdfInfo();
 
         // Handle signature source tabs
-        document.getElementById('saved-signatures-tab').addEventListener('click', function() {
+        document.getElementById('saved-signatures-tab').addEventListener('click', function () {
             currentSignatureSource = 'saved';
             document.getElementById('signature_source').value = 'saved';
         });
 
-        document.getElementById('new-signature-tab').addEventListener('click', function() {
+        document.getElementById('new-signature-tab').addEventListener('click', function () {
             currentSignatureSource = 'new';
             document.getElementById('signature_source').value = 'new';
             initializeSignaturePad();
@@ -296,10 +308,10 @@
 
         // Handle saved signature selection
         document.querySelectorAll('.saved-signature-item').forEach(item => {
-            item.addEventListener('click', function() {
+            item.addEventListener('click', function () {
                 // Remove selection from all items
                 document.querySelectorAll('.saved-signature-item').forEach(i => i.classList.remove('selected'));
-                
+
                 // Add selection to clicked item
                 this.classList.add('selected');
                 selectedSignatureId = this.dataset.signatureId;
@@ -309,7 +321,7 @@
         });
 
         // Handle saved signature usage
-        document.getElementById('use-saved-signature')?.addEventListener('click', function() {
+        document.getElementById('use-saved-signature')?.addEventListener('click', function () {
             if (!selectedSignatureId) {
                 alert('Please select a signature first');
                 return;
@@ -317,7 +329,7 @@
 
             // Build the URL properly using template variable
             const getSignatureUrl = "{{ url_for('get_signature', signature_id=999999) }}".replace('999999', selectedSignatureId);
-            
+
             // Fetch the signature image
             fetch(getSignatureUrl)
                 .then(response => response.json())
@@ -326,7 +338,7 @@
                         alert('Error loading signature: ' + data.error);
                         return;
                     }
-                    
+
                     createSignaturePreview(data.image);
                 })
                 .catch(error => {
