@@ -64,7 +64,7 @@ A comprehensive digital signature platform for PDF documents compliant with **PA
 ## 📸 Application Screenshots
 
 ### **Dashboard - Document Management Hub**
-![Dashboard](asset/screenshots/dashboard.png)
+![Dashboard](assets/screenshots/dashboard.png)
 
 The main dashboard provides a centralized view of all documents with:
 - **Document Upload**: Drag-and-drop PDF upload with file validation
@@ -74,7 +74,7 @@ The main dashboard provides a centralized view of all documents with:
 - **Document Metadata**: Upload dates, file sizes, and signature status
 
 ### **Signature Creation - Digital Canvas**
-![Signature Creation](asset/screenshots/signature%20creation%20page.png)
+![Signature Creation](assets/screenshots/signature-creation-page.png)
 
 Professional signature creation interface featuring:
 - **HTML5 Canvas**: Smooth drawing experience with pressure sensitivity
@@ -84,7 +84,7 @@ Professional signature creation interface featuring:
 - **Responsive Design**: Works on both desktop and mobile devices
 
 ### **Signature Management - Template Library**
-![Signatures Page](asset/screenshots/signatures%20page.png)
+![Signatures Page](assets/screenshots/signatures-page.png)
 
 Comprehensive signature management system:
 - **Signature Gallery**: Visual preview of all saved signatures
@@ -94,7 +94,7 @@ Comprehensive signature management system:
 - **Template Reuse**: Easy selection for document signing
 
 ### **Document Signing Interface - Professional Workflow**
-![Sign Page](asset/screenshots/sign%20page.png)
+![Sign Page](assets/screenshots/sign-page.png)
 
 Advanced document signing interface with:
 - **Multi-page PDF Preview**: Navigate through document pages with tabs
@@ -105,7 +105,7 @@ Advanced document signing interface with:
 - **Visual Feedback**: Clear indication of signature placement
 
 ### **Document Viewer - Signed Document Display**
-![View Page](asset/screenshots/view%20page.png)
+![View Page](assets/screenshots/view-page.png)
 
 Clean document viewing experience:
 - **PDF Rendering**: High-quality document display
@@ -115,7 +115,7 @@ Clean document viewing experience:
 - **Navigation Controls**: Easy return to dashboard
 
 ### **Certificate Validation - Security Assessment**
-![Certificate Validation](asset/screenshots/certificate%20validation%20page.png)
+![Certificate Validation](assets/screenshots/certificate-validation-page.png)
 
 Comprehensive certificate health monitoring:
 - **Validation Status**: Clear pass/fail indicators with detailed explanations
@@ -125,7 +125,7 @@ Comprehensive certificate health monitoring:
 - **Compliance Check**: Verification against industry standards
 
 ### **Key Status Monitoring - Proactive Security**
-![Key Status](asset/screenshots/key%20status%20page.png)
+![Key Status](assets/screenshots/key-status-page.png)
 
 Intelligent key rotation monitoring system:
 - **Risk Assessment**: Color-coded urgency levels (Critical, High, Medium, Low)
@@ -135,7 +135,7 @@ Intelligent key rotation monitoring system:
 - **Quick Actions**: Direct access to key rotation and validation tools
 
 ### **Key Rotation - Security Maintenance**
-![Key Rotation](asset/screenshots/key%20rotation%20page.png)
+![Key Rotation](assets/screenshots/key-rotation-page.png)
 
 Professional key rotation interface:
 - **Security Warnings**: Clear indication of the importance of key rotation
@@ -175,7 +175,7 @@ eSign/
 │   ├── keys/                    # User key storage
 │   ├── uploads/                 # Document storage
 │   └── signatures/              # Signature images
-├── asset/screenshots/           # Application screenshots
+├── assets/screenshots/           # Application screenshots
 ├── trust_store/                 # Certificate authority files
 ├── main.py                      # Cryptographic research demos
 └── requirements.txt             # Dependencies
