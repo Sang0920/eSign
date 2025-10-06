@@ -255,7 +255,7 @@
         if (authToken) {
             document.getElementById('auth_token').value = authToken;
         }
-        
+
         // PDF viewing variables
         let currentPage = 0;
         let totalPages = 1;
@@ -282,10 +282,17 @@
                 resizeCanvas();
                 window.addEventListener('resize', resizeCanvas);
 
+                // signaturePad = new SignaturePad(canvas, {
+                //     minWidth: 1,
+                //     maxWidth: 3,
+                //     penColor: 'black',
+                //     backgroundColor: 'rgba(255, 255, 255, 0)'
+                // });
+                // Around line 283, change:
                 signaturePad = new SignaturePad(canvas, {
-                    minWidth: 1,
-                    maxWidth: 3,
-                    penColor: 'black',
+                    minWidth: 0.5,  // Reduced from 1 for thinner lines
+                    maxWidth: 1.5,  // Reduced from 3 for thinner lines
+                    penColor: 'blue',  // Changed from 'black' to 'blue'
                     backgroundColor: 'rgba(255, 255, 255, 0)'
                 });
             }
